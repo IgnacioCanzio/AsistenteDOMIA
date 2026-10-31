@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DOMIA · Sistema Experto de Conserjería para Alquileres Temporarios</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Encabezado Principal -->
+    <header class="app-header">
+        <div class="header-brand">
+            <div class="logo-icon">🔑</div>
+            <div class="brand-text">
+                <h1>DOMIA</h1>
+                <span class="brand-subtitle">Sistema Experto de Conserjería & Triage Asistido · Grupo 3 UTN FRM</span>
+            </div>
+        </div>
+        <div class="header-badges">
+            <span class="status-badge" id="backendStatus"><span class="dot online"></span> API FastAPI Conectada</span>
+            <span class="status-badge" id="neo4jStatus"><span class="dot mock"></span> Grafo Cypher PG2 Activo</span>
+            <button class="btn-secondary" id="btnResetSession" title="Reiniciar conversación y estado">🔄 Nueva Sesión</button>
+        </div>
+    </header>
+
+    <!-- Contenedor de Tres Columnas -->
+    <main class="app-layout">
+        
+        <!-- COLUMNA 1: Simulador QR Huésped -->
+        <section class="panel-column chat-column">
+            <div class="panel-header">
+                <h2>📱 Chat Huésped (Acceso QR)</h2>
+                <span class="panel-tag">Submódulo M1</span>
+            </div>
+
+            <!-- Controles de Simulación de Contexto -->
+            <div class="simulation-controls">
+                <div class="control-row">
+                    <label for="selectInmueble">Departamento:</label>
+                    <select id="selectInmueble">
+                        <option value="inm101">Depto 101 (Termotanque Gas Eskabe)</option>
+                        <option value="inm102">Depto 102 (Cerradura Digital Samsung)</option>
+                        <option value="inm103">Depto 103 (Split AC BGH)</option>
+                        <option value="inm104">Depto 104 (Termotanque Gas + Eléctrico)</option>
+                        <option value="inm105">Depto 105 (Termotanque Gas Orbis)</option>
+                    </select>
+                </div>
+
+                <div class="preset-row">
+                    <label>Casos de Prueba:</label>
+                    <div class="preset-buttons">
+                        <button class="preset-btn" data-inm="inm101" data-msg="¿Con qué cosas me podés ayudar?">0. Capacidades</button>
+                        <button class="preset-btn" data-inm="inm101" data-msg="Hola, no tengo agua caliente en la ducha">1. Agua fría (tg01)</button>
+                        <button class="preset-btn" data-inm="inm102" data-msg="El teclado de la cerradura no responde al poner el código">2. Cerradura (cer01)</button>
+                        <button class="preset-btn" data-inm="inm104" data-msg="No anda el agua caliente en el departamento">3. Ambigüedad (104)</button>
+                        <button class="preset-btn" data-inm="inm103" data-msg="El aire acondicionado tira aire tibio y hace calor">4. Ola calor Split</button>
+                        <button class="preset-btn alert-preset" data-inm="inm105" data-msg="Siento un fuerte olor a gas en la cocina">5. ¡Olor a gas!</button>
+                        <button class="preset-btn" data-inm="inm101" data-msg="Me recomiendan algún restaurante para cenar?">6. Fuera dominio</button>
+                        <button class="preset-btn" data-inm="inm101" data-msg="El aire acondicionado split no enfría nada">7. Inexistente (I8)</button>
+                        <button class="preset-btn" data-inm="inm101" data-msg="No hay olor a gas pero el termotanque no enciende">8. Alarma negada (I2)</button>
+                    </div>
+                </div>
+
+                <!-- Sliders de Telemetría Ambiental -->
+                <div class="telemetry-box">
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>🌡️ Temperatura:</span>
+                            <strong id="valTemp">24 °C</strong>
+                        </div>
+                        <input type="range" id="sliderTemp" min="5" max="45" value="24" step="1">
+                    </div>
+                    <div class="slider-group">
+                        <div class="slider-label">
+                            <span>⏳ Tiempo restante:</span>
+                            <strong id="valHoras">24 h</strong>
+                        </div>
+                        <input type="range" id="sliderHoras" min="1" max="72" value="24" step="0.5">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ventana de Chat -->
+            <div class="chat-viewport" id="chatViewport">
+                <div class="chat-message bot">
+                    <div class="avatar">🤖</div>
+                    <div class="bubble">
+                        <div class="sender">DOMIA Concierge</div>
+                        <div class="text">¡Hola! Bienvenido a tu departamento. Si tienes algún inconveniente técnico o duda con el equipamiento, cuéntame y te ayudo a resolverlo.</div>
+                        <div class="time">Inicio de estadía</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botonera de Opciones Rápidas e Interactivas -->
+            <div class="chat-action-bar hidden" id="chatActionBar">
+                <div class="action-label" id="actionLabel">¿Pudiste realizar la comprobación?</div>
+                <div class="action-buttons" id="actionButtons">
+                    <!-- Se llenan dinámicamente según el paso actual -->
+                </div>
+            </div>
+
+            <!-- Formulario de Entrada -->
+            <form class="chat-input-area" id="chatForm">
+                <input type="text" id="chatInput" placeholder="Describe tu problema o escribe un mensaje..." autocomplete="off">
+                <button type="submit" class="btn-send" id="btnSend">Enviar</button>
+            </form>
+        </section>
+
+        <!-- COLUMNA 2: Panel del Anfitrión & Triage -->
+        <section class="panel-column triage-column">
+            <div class="panel-header">
+                <h2>🛎️ Panel de Triage del Anfitrión</h2>
+                <span class="panel-tag">Submódulo M3</span>
+            </div>
+
+            <!-- Métricas Clave de Triage -->
+            <div class="triage-metrics">
+                <div class="metric-card critical">
+                    <span class="metric-val" id="metricCrit">0</span>
+                    <span class="metric-lbl">🚨 Emergencias (Niv 5)</span>
+                </div>
+                <div class="metric-card high">
+                    <span class="metric-val" id="metricHigh">0</span>
+                    <span class="metric-lbl">🔥 Severidad Alta (Niv 4)</span>
+                </div>
+                <div class="metric-card medium">
+                    <span class="metric-val" id="metricMed">0</span>
+                    <span class="metric-lbl">⚠️ Severidad Media (Niv 3)</span>
+                </div>
+                <div class="metric-card success">
+                    <span class="metric-val" id="metricSolved">0</span>
+                    <span class="metric-lbl">✅ Resueltas Huésped (S2)</span>
+                </div>
+            </div>
+
+            <!-- Lista de Fichas de Incidencias -->
+            <div class="incidents-container">
+                <h3>Incidencias Registradas</h3>
+                <div class="incidents-list" id="incidentsList">
+                    <div class="empty-state">No hay incidencias registradas en esta sesión. Inicia una conversación para ver el triage en vivo.</div>
+                </div>
+            </div>
+
+            <!-- Detalle de la Notificación Verbalizada por LLM -->
+            <div class="notification-preview">
+                <h3>Aviso Redactado para el Anfitrión (Regla I10 / Gemini)</h3>
+                <div class="notification-card" id="notificationCard">
+                    <em>Selecciona o genera una incidencia para ver la notificación ejecutiva.</em>
+                </div>
+            </div>
+        </section>
+
+        <!-- COLUMNA 3: Inspector de Trazabilidad y Grafo Neo4j -->
+        <section class="panel-column inspector-column">
+            <div class="panel-header">
+                <h2>🔬 Inspector de Trazabilidad & Cypher</h2>
+                <span class="panel-tag">Marco 2 & Reglas</span>
+            </div>
+
+            <!-- Selector de Pestañas del Inspector -->
+            <div class="inspector-tabs">
+                <button class="tab-btn active" data-tab="tabTrace">Traza en Vivo</button>
+                <button class="tab-btn" data-tab="tabFuzzy">10 Casos Difusos</button>
+                <button class="tab-btn" data-tab="tabRules">Reglas Nítidas</button>
+            </div>
+
+            <!-- Pestaña 1: Traza en Vivo del Turno -->
+            <div class="tab-content active" id="tabTrace">
+                <div class="trace-section">
+                    <h4>M1: Interpretación y Suficiencia</h4>
+                    <pre class="code-box" id="traceM1">Esperando interacción del huésped...</pre>
+                </div>
+                <div class="trace-section">
+                    <h4>M2: Troubleshooting y Priorización</h4>
+                    <pre class="code-box" id="traceM2">Sin diagnóstico activo.</pre>
+                </div>
+                <div class="trace-section">
+                    <h4>M3: Triage Difuso y T1 / R5</h4>
+                    <pre class="code-box" id="traceM3">Sin cálculo de severidad.</pre>
+                </div>
+                <div class="trace-section">
+                    <h4>Consulta Cypher de Marco 2 Asociada</h4>
+                    <pre class="code-box cypher-code" id="traceCypher">MATCH (s:Sintoma)-[:ASOCIADO_A]->(c:CausaRaiz) ...</pre>
+                </div>
+            </div>
+
+            <!-- Pestaña 2: Benchmark de los 10 Casos Difusos -->
+            <div class="tab-content" id="tabFuzzy">
+                <div class="fuzzy-cases-table-wrap">
+                    <table class="fuzzy-table">
+                        <thead>
+                            <tr>
+                                <th>Módulo</th>
+                                <th>Caso ID</th>
+                                <th>Esperado</th>
+                                <th>Calculado</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fuzzyCasesBody">
+                            <!-- Llenado dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pestaña 3: Catálogo de Reglas Nítidas -->
+            <div class="tab-content" id="tabRules">
+                <div class="rules-list">
+                    <div class="rule-item"><strong>I1 / R1 / S1</strong>: Triada de seguridad ante gas/fuego -> Emergencia Nivel 5 fija.</div>
+                    <div class="rule-item"><strong>I2</strong>: Alarma explícitamente negada -> No dispara PE-1, anexa nota preventiva.</div>
+                    <div class="rule-item"><strong>I8 / I12</strong>: Validación en grafo de artefacto existente en la unidad y reserva activa.</div>
+                    <div class="rule-item"><strong>R2</strong>: Exclusión de <code>:PasoNoDelegable</code> para seguridad del huésped.</div>
+                    <div class="rule-item"><strong>R3</strong>: Resolución exitosa por huésped -> Cierre silencioso S2.</div>
+                    <div class="rule-item"><strong>R5</strong>: Piso obligatorio de Nivel 4 para Servicios Esenciales.</div>
+                    <div class="rule-item"><strong>R8</strong>: Máximo 4 pasos o 2 "no puedo" consecutivos -> Escalada.</div>
+                    <div class="rule-item"><strong>R9 / R10</strong>: Disparo repetido de disyuntor o falla de red compartida -> Escalada directa.</div>
+                    <div class="rule-item"><strong>S4 / S5</strong>: Elevación por concurrencia en el inmueble y sensibilidad climática continua.</div>
+                    <div class="rule-item"><strong>I10</strong>: Verbalización con Gemini fiel al payload sin inventar pasos.</div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
