@@ -27,7 +27,7 @@ Contenido del archivo `.env`:
 # Clave de Google AI Studio para verbalización y extracción semántica (opcional)
 # Si se deja vacía o con el placeholder, opera 100% en modo experto determinístico (Regla I14)
 GEMINI_API_KEY=tu_api_key_de_google_gemini_aqui
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-3.5-flash-lite
 
 # Conexión a la base de conocimiento Neo4j
 NEO4J_URI=bolt://localhost:7687
@@ -154,7 +154,7 @@ python -m pytest tests/ -v
 
 El sistema implementa el patrón **Sandwich de Seguridad**:
 1. **Filtro Determinístico Inmutable (I1 -> R1 -> S1)**: Detección léxica de gas/humo/fuego sin negación previa. Desvía instantáneamente a la plantilla de evacuación inmutable `pe1` (`I11_PLANTILLA_EMERGENCIA_FIJA`) y asigna **Nivel 5 Emergencia**, omitiendo cualquier inferencia difusa o llamada a LLM.
-2. **Submódulo M1**: Extracción de entidad/síntoma mediante **Google Gemini API** (`gemini-2.5-flash`) con pre-validación de vocabulario y fallback determinístico (**I14**). Detecta consultas de capacidades y saludos cordiales sin generar falsas averías. Inferencia **Mamdani M1** para evaluar suficiencia diagnóstica y manejar ambigüedad en inmuebles multi-artefacto (ej. Depto 104) con un límite estricto de 2 rondas (**I7**).
+2. **Submódulo M1**: Extracción de entidad/síntoma mediante **Google Gemini API** (`gemini-3.5-flash-lite`) con pre-validación de vocabulario y fallback determinístico (**I14**). Detecta consultas de capacidades y saludos cordiales sin generar falsas averías. Inferencia **Mamdani M1** para evaluar suficiencia diagnóstica y manejar ambigüedad en inmuebles multi-artefacto (ej. Depto 104) con un límite estricto de 2 rondas (**I7**).
 3. **Submódulo M2**: Grafo de conocimiento en **Neo4j** (Cypher C1). Filtra por compatibilidad de artefacto (**R6**) y excluye pasos no delegables (`:PasoNoDelegable`, **R2**). Prioriza hipótesis con **Mamdani M2** (`FrecuenciaCausa`, `RiesgoEsfuerzoPaso`, `EvidenciaAcumulada`). Implementa descarte de hipótesis (**R11**), confirmación de resolución (**R3**), protocolo ante fallas eléctricas (**R9**) o de red (**R10**), y límites de autonomía / presupuesto (**R8**).
 4. **Submódulo M3**: Triage de incidencias. Cierre silencioso para resueltas en autoservicio (**S2**, Nivel 0). Inferencia **Mamdani M3** continua ante impacto climático (**S5**), tiempo restante y sensibilidad del servicio. Mapeo a 5 niveles (**T1**), elevación por concurrencia en la misma unidad (**S4**), piso mandatorio de Nivel 4 para **Servicios Esenciales** (**R5**), y asignación de canales de notificación (**T2**: alerta inmediata, cola priorizada, reporte diario).
 
