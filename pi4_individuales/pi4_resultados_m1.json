@@ -7,7 +7,7 @@
     "extraccion": {
       "artefacto_mencionado": "tg01",
       "sintoma_identificado": "sin_agua_caliente",
-      "confianza_extraccion": 0.98,
+      "confianza_extraccion": 0.95,
       "polaridad": "afirmativa",
       "es_alarma": false,
       "termino_alarma": null,
@@ -29,7 +29,7 @@
       ],
       "nota_preventiva": null
     },
-    "respuesta": "¡Hola! Entiendo perfectamente: me señalás que el TermotanqueGas Eskabe del Depto 101 está sin agua caliente. Quedate tranquilo, que a continuación te voy a guiar con la revisión.",
+    "respuesta": "¡Hola! Entiendo perfectamente, me dijiste que el TermotanqueGas Eskabe del Depto 101 está sin agua caliente. No te preocupes, ahora te voy a guiar paso a paso con la revisión para solucionarlo juntos.",
     "fidelidad_ok": true,
     "exito": true
   },
@@ -39,9 +39,9 @@
     "tipo_obtenido": "pregunta_aclaratoria",
     "tipo_esperado": "pregunta_aclaratoria",
     "extraccion": {
-      "artefacto_mencionado": "tg02",
+      "artefacto_mencionado": "te01",
       "sintoma_identificado": "sin_agua_caliente",
-      "confianza_extraccion": 1.0,
+      "confianza_extraccion": 0.95,
       "polaridad": "afirmativa",
       "es_alarma": false,
       "termino_alarma": null,
@@ -59,7 +59,7 @@
       "motivo": "ambigüedad entre dos termotanques instalados",
       "suficiencia_centroide": 50.1
     },
-    "respuesta": "¡Hola! ¿Cómo estás? Para poder asistirte mejor, ¿te referís al termotanque eléctrico del baño o al termotanque a gas de la cocina?",
+    "respuesta": "¡Hola! Para poder ayudarte mejor con tu consulta, ¿te referís al termotanque eléctrico del baño o al termotanque a gas de la cocina?",
     "fidelidad_ok": true,
     "exito": true
   },
@@ -74,7 +74,7 @@
       "confianza_extraccion": 0.95,
       "polaridad": "afirmativa",
       "es_alarma": false,
-      "termino_alarma": "gas",
+      "termino_alarma": null,
       "fuera_de_dominio": false,
       "es_consulta_capacidades": false,
       "mencion_artefacto_texto": "termotanque"
@@ -93,7 +93,7 @@
       ],
       "nota_preventiva": "Nota preventiva (Regla I2): Se registró que actualmente NO percibe «gas». Ante cualquier aparición de olor a gas, humo o chispas, detenga las pruebas de inmediato y avísenos."
     },
-    "respuesta": "¡Hola! Qué bajón lo que me contás sobre el termotanque Eskabe sin agua caliente. Quedate tranquilo, ahora te voy a guiar con la revisión.Nota preventiva: se registró que actualmente no percibís gas. Ante cualquier aparición de olor a gas, humo o chispas, detené las pruebas de inmediato y avisanos.",
+    "respuesta": "¡Hola! Entiendo perfectamente: me reportás que tu TermotanqueGas Eskabe en el Depto 101 está sin agua caliente. \n\nQuedate tranquilo, ahora te voy a guiar con la revisión paso a paso. \n\nTe recuerdo la nota preventiva: se registró que actualmente no percibís gas; sin embargo, ante cualquier aparición de olor a gas, humo o chispas, detené las pruebas de inmediato y avisanos.",
     "fidelidad_ok": true,
     "exito": true
   },
@@ -121,7 +121,7 @@
         "tg01 (TermotanqueGas Eskabe)"
       ]
     },
-    "respuesta": "¡Hola! ¿Cómo andás? Te cuento que en el departamento no contamos con aire acondicionado split. Los únicos artefactos instalados que figuran en nuestros registros son: tg01 (TermotanqueGas Eskabe). ¡Cualquier otra consulta, avisame!",
+    "respuesta": "¡Hola! Qué pena, pero en el Depto 101 no contamos con un aire acondicionado split instalado. Los artefactos que sí tenés disponibles son: tg01 (TermotanqueGas Eskabe). ¿Te puedo ayudar con alguna consulta sobre este equipo?",
     "fidelidad_ok": true,
     "exito": true
   },
@@ -133,7 +133,7 @@
     "extraccion": {
       "artefacto_mencionado": "tg03",
       "sintoma_identificado": "olor_a_gas",
-      "confianza_extraccion": 0.98,
+      "confianza_extraccion": 1.0,
       "polaridad": "afirmativa",
       "es_alarma": true,
       "termino_alarma": "gas",
@@ -157,7 +157,7 @@
     "extraccion": {
       "artefacto_mencionado": null,
       "sintoma_identificado": null,
-      "confianza_extraccion": 0.0,
+      "confianza_extraccion": 1.0,
       "polaridad": "afirmativa",
       "es_alarma": false,
       "termino_alarma": null,
@@ -176,7 +176,7 @@
   {
     "caso": "E2",
     "nombre": "Saludo con problema sin especificar",
-    "tipo_obtenido": "consulta_capacidades",
+    "tipo_obtenido": "pregunta_aclaratoria",
     "tipo_esperado": "consulta_capacidades",
     "extraccion": {
       "artefacto_mencionado": null,
@@ -186,16 +186,24 @@
       "es_alarma": false,
       "termino_alarma": null,
       "fuera_de_dominio": false,
-      "es_consulta_capacidades": true,
+      "es_consulta_capacidades": false,
       "mencion_artefacto_texto": null
     },
     "datos_grafo": {
-      "tipo_evento": "consulta_capacidades",
-      "mensaje_fijo": "¡Hola! Soy DOMIA, tu asistente virtual de conserjería para Depto 101.\n\nPuedo asistirte en el autodiagnóstico técnico y resolución paso a paso del equipamiento de tu unidad:\n• tg01 (TermotanqueGas Eskabe)\n\nTe puedo guiar con problemas como:\n• Temperatura del agua o encendido del termotanque\n• Bloqueo o código de la cerradura electrónica\n• Funcionamiento o limpieza del aire acondicionado (Split)\n• Verificación segura de llaves térmicas y disyuntor\n\n¿En qué te puedo ayudar hoy? Contame qué sucede y lo resolvemos."
+      "tipo_evento": "pregunta_aclaratoria",
+      "unidad": "Depto 101",
+      "opciones": [
+        "Agua caliente",
+        "Cerradura electrónica",
+        "Aire acondicionado / Split",
+        "Suministro eléctrico"
+      ],
+      "motivo": "el mensaje no permite identificar la falla",
+      "suficiencia_centroide": null
     },
-    "respuesta": "¡Hola! Soy DOMIA, tu asistente virtual de conserjería para Depto 101.\n\nPuedo asistirte en el autodiagnóstico técnico y resolución paso a paso del equipamiento de tu unidad:\n• tg01 (TermotanqueGas Eskabe)\n\nTe puedo guiar con problemas como:\n• Temperatura del agua o encendido del termotanque\n• Bloqueo o código de la cerradura electrónica\n• Funcionamiento o limpieza del aire acondicionado (Split)\n• Verificación segura de llaves térmicas y disyuntor\n\n¿En qué te puedo ayudar hoy? Contame qué sucede y lo resolvemos.",
+    "respuesta": "¡Hola! ¿Cómo estás? Para poder ayudarte mejor desde el Depto 101, ¿podrías decirme sobre qué equipo querés consultarnos? \n\nPor favor, elegí una de estas opciones:\n- Agua caliente\n- Cerradura electrónica\n- Aire acondicionado / Split\n- Suministro eléctrico",
     "fidelidad_ok": true,
-    "exito": true
+    "exito": false
   },
   {
     "caso": "E3",
@@ -206,7 +214,7 @@
       "artefacto_mencionado": null,
       "sintoma_identificado": null,
       "confianza_extraccion": 0.0,
-      "polaridad": "afirmativa",
+      "polaridad": "negativa",
       "es_alarma": false,
       "termino_alarma": null,
       "fuera_de_dominio": true,
