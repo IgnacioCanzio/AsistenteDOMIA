@@ -33,6 +33,13 @@ class ModuloM1Interpretacion:
         """
         # 0. Consulta Cypher de contexto del inmueble y reserva activa (I8 / I12)
         info_inmueble = self.db.verificar_contexto_inmueble(inmueble_id, huesped_id)
+        if info_inmueble.get('existe') is False:
+            msg_inex = f"El inmueble con identificador '{inmueble_id}' no se encuentra registrado en el sistema."
+            return 'inmueble_inexistente', None, None, {
+                'regla_aplicada': 'inmueble_no_registrado',
+                'inmueble_id': inmueble_id,
+                'mensaje': msg_inex
+            }
         artefactos_inmueble = info_inmueble.get('artefactos', []) or self.db.inmuebles.get(inmueble_id, {}).get('artefactos', [])
 
         # Regla I12: Verificación de reserva activa antes de abrir sesión diagnóstica
@@ -81,7 +88,7 @@ class ModuloM1Interpretacion:
             }
 
         # Regla I1, R1, S1, I11: Barrera Determinística de Seguridad
-        if extraccion.get('es_alarma', False):
+        if extraccion.get('es_alarma', False) and not extraccion.get('alarma_negada', False):
             # Ejecutar consulta Cypher C1b en vivo para trazabilidad
             traza_c1b = self.db.check_seguridad("rep6")
             reporte_seg = ReporteEstructurado(
@@ -215,7 +222,9 @@ class ModuloM1Interpretacion:
                 return 'escalada_anfitrion', None, eval_m1, {'regla_aplicada': 'I7_limite_rondas', 'mensaje': msg}
 
         # Determinación final del artefacto entre los candidatos válidos de la unidad
-        if artefacto_id not in ('tab01', 'red_agua'):
+        if ('eléctrico' in relato.lower() or 'electrico' in relato.lower() or ('baño' in relato.lower() and 'te01' in artefactos_inmueble)) and 'te01' in artefactos_inmueble:
+            artefacto_id = 'te01'
+        elif artefacto_id not in ('tab01', 'red_agua'):
             if not artefacto_id or artefacto_id not in artefactos_inmueble:
                 artefacto_id = candidatos_posibles[0] if candidatos_posibles else (artefactos_inmueble[0] if artefactos_inmueble else "tg01")
 

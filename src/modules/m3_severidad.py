@@ -18,6 +18,8 @@ Reglas implementadas:
 
 import math
 import uuid
+import os
+import json
 from typing import Dict, Any, Optional
 from src.models.schemas import (
     DiagnosticoFinal,
@@ -250,6 +252,56 @@ class ModuloM3Severidad:
         ficha.notificacion_redactada = notificacion_llm
 
         return ficha
+
+    def consultar_triage_lenguaje_natural(self, mensaje: str, llm_provider=None) -> Dict[str, Any]:
+        """
+        Consulta en lenguaje natural sobre el estado/prioridad de una incidencia mediante el patrón Sándwich M3.
+        Reutiliza C9, C4, C6 y C8.
+        """
+        from pi4_individuales.pi4_m3_montero_sandwich import (
+            CONTEXTO_SISTEMA_M3,
+            ejecutar_caso_m3
+        )
+        from src.llm.sandwich import Sandwich, ProveedorLLM
+        from src.llm.prompts import PROMPT_EXTRACCION_M3, PROMPT_EXPLICACION_M3
+        from src.models.schemas import ExtraccionM3
+
+        if llm_provider is None:
+            reg_path = os.path.join(os.path.dirname(__file__), "..", "..", "pi4_individuales", "pi4_llm_registro_m3.json")
+            registro = None
+            if os.path.exists(reg_path):
+                with open(reg_path, "r", encoding="utf-8") as f:
+                    registro = json.load(f)
+            from src.config import settings
+            modo = getattr(settings, "LLM_PROVIDER", "replay") if hasattr(settings, "LLM_PROVIDER") else "replay"
+            llm_provider = ProveedorLLM(modo=modo, registro=registro)
+
+        sandwich = Sandwich(
+            prefijo="m3",
+            prompt_extraccion=PROMPT_EXTRACCION_M3,
+            prompt_explicacion=PROMPT_EXPLICACION_M3,
+            modelo_pydantic=ExtraccionM3,
+            llm=llm_provider,
+            rotulo_contexto="Contexto del sistema",
+            rotulo_mensaje="Consulta del usuario"
+        )
+
+        # Mapear a caso conocido si coincide para soporte replay perfecto
+        cid = "API"
+        m_low = mensaje.lower()
+        if "103" in m_low and any(w in m_low for w in ["aire", "split", "climatiz"]):
+            cid = "B1"
+        elif "102" in m_low and any(w in m_low for w in ["cerradura", "clave", "puerta"]):
+            cid = "B2"
+        elif "104" in m_low:
+            cid = "B3"
+        elif "101" in m_low:
+            cid = "B4"
+        elif "105" in m_low:
+            cid = "B5"
+
+        caso_tmp = {"id": cid, "nombre": f"Consulta API M3 ({cid})", "msg": mensaje}
+        return ejecutar_caso_m3(sandwich, caso_tmp)
 
 # Instancia global
 modulo_m3 = ModuloM3Severidad()

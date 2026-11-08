@@ -239,3 +239,15 @@ RETURN c.caso_id AS caso,
        r.expresion AS expresion
 ORDER BY alfa DESC, regla;
 """
+
+# C9: Localizar incidencia a partir de la unidad y opcionalmente el servicio (M3)
+C9_BUSCAR_INCIDENCIA = """
+MATCH (inc:Incidencia)-[:AFECTA_A]->(i:Inmueble {inmueble_id: $inmueble_id})
+MATCH (inc)-[:AFECTA_A]->(sv:Servicio)
+WHERE $servicio_id IS NULL OR sv.servicio_id = $servicio_id
+RETURN inc.incidencia_id AS incidencia,
+       i.nombre AS inmueble,
+       sv.servicio_id AS servicio,
+       inc.estado AS estado
+ORDER BY incidencia;
+"""

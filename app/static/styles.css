@@ -730,3 +730,69 @@ body {
 .rule-item strong {
     color: var(--accent);
 }
+
+/* Alertas de Emergencia en Tiempo Real (PG3) */
+.emergency-alerts-box {
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 16px;
+}
+
+.alerts-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fca5a5;
+    margin-bottom: 8px;
+}
+
+.badge-count {
+    background: #ef4444;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+}
+
+.empty-alerts {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.emergency-alert-card {
+    background: rgba(239, 68, 68, 0.15);
+    border-left: 3px solid #ef4444;
+    padding: 8px 10px;
+    border-radius: 4px;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+
+.emergency-alert-card .alt-title {
+    font-weight: 700;
+    color: #fca5a5;
+    display: flex;
+    justify-content: space-between;
+}
+
+.emergency-alert-card .alt-body {
+    color: #f8fafc;
+    margin-top: 4px;
+    font-size: 11px;
+}
+
+.triage-preset {
+    background: rgba(56, 189, 248, 0.12) !important;
+    border-color: rgba(56, 189, 248, 0.4) !important;
+    color: #38bdf8 !important;
+}
+
+.triage-preset:hover {
+    background: rgba(56, 189, 248, 0.25) !important;
+}

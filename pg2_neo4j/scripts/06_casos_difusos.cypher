@@ -131,3 +131,6 @@ CREATE (cm2c)-[:EVALUA_A]->(hip2);
 
 MATCH (cm3:CasoDifuso {caso_id:'M3-caso1'}), (inc4:Incidencia {incidencia_id:'inc4'})
 CREATE (cm3)-[:EVALUA_A]->(inc4);
+
+MATCH (cm3_lim:CasoDifuso {caso_id:'M3-limite'}), (inc5:Incidencia {incidencia_id:'inc5'})
+CREATE (cm3_lim)-[:EVALUA_A]->(inc5);

@@ -61,6 +61,9 @@
                         <button class="preset-btn" data-inm="inm101" data-msg="Me recomiendan algún restaurante para cenar?">6. Fuera dominio</button>
                         <button class="preset-btn" data-inm="inm101" data-msg="El aire acondicionado split no enfría nada">7. Inexistente (I8)</button>
                         <button class="preset-btn" data-inm="inm101" data-msg="No hay olor a gas pero el termotanque no enciende">8. Alarma negada (I2)</button>
+                        <button class="preset-btn triage-preset" data-inm="inm103" data-msg="¿Cómo quedó clasificada la incidencia del aire acondicionado del depto 103?">M3: Clasif. Split 103</button>
+                        <button class="preset-btn triage-preset" data-inm="inm102" data-msg="¿Por qué la falla de la cerradura del depto 102 figura con prioridad alta si no hace calor ni queda poco tiempo?">M3: Justif. Cerradura 102</button>
+                        <button class="preset-btn triage-preset" data-inm="inm104" data-msg="Quiero saber en qué estado quedó la incidencia del termotanque eléctrico del 104 y por dónde se avisa.">M3: Límite Depto 104</button>
                     </div>
                 </div>
 
@@ -137,6 +140,17 @@
                 </div>
             </div>
 
+            <!-- Alertas de Emergencia en Tiempo Real (PG3) -->
+            <div class="emergency-alerts-box" id="emergencyAlertsBox">
+                <div class="alerts-header">
+                    <span>🚨 Alertas de Emergencia Despachadas</span>
+                    <span class="badge-count" id="emergencyCount">0</span>
+                </div>
+                <div class="alerts-list" id="emergencyList">
+                    <div class="empty-alerts">Sin emergencias activas. El monitoreo opera normalmente.</div>
+                </div>
+            </div>
+
             <!-- Lista de Fichas de Incidencias -->
             <div class="incidents-container">
                 <h3>Incidencias Registradas</h3>
@@ -164,6 +178,7 @@
             <!-- Selector de Pestañas del Inspector -->
             <div class="inspector-tabs">
                 <button class="tab-btn active" data-tab="tabTrace">Traza en Vivo</button>
+                <button class="tab-btn" data-tab="tabSandwich">Sándwich LLM</button>
                 <button class="tab-btn" data-tab="tabFuzzy">10 Casos Difusos</button>
                 <button class="tab-btn" data-tab="tabRules">Reglas Nítidas</button>
             </div>
@@ -185,6 +200,22 @@
                 <div class="trace-section">
                     <h4>Consulta Cypher de Marco 2 Asociada</h4>
                     <pre class="code-box cypher-code" id="traceCypher">MATCH (s:Sintoma)-[:ASOCIADO_A]->(c:CausaRaiz) ...</pre>
+                </div>
+            </div>
+
+            <!-- Pestaña Sándwich LLM ⇄ Neo4j (PI4) -->
+            <div class="tab-content" id="tabSandwich">
+                <div class="trace-section">
+                    <h4>Etapa 1: Extracción con LLM (JSON estricto)</h4>
+                    <pre class="code-box" id="traceSandwichExt">Esperando extracción del modelo...</pre>
+                </div>
+                <div class="trace-section">
+                    <h4>Etapas 3 y 4: Razonamiento en Grafo & Cypher</h4>
+                    <pre class="code-box cypher-code" id="traceSandwichCypher">Sin consultas sándwich activas.</pre>
+                </div>
+                <div class="trace-section">
+                    <h4>Etapa 5 y 6: Explicación LLM & Verificación I10</h4>
+                    <pre class="code-box" id="traceSandwichExp">Sin respuesta explicativa.</pre>
                 </div>
             </div>
 

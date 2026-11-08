@@ -278,3 +278,122 @@ def test_m1_consulta_capacidades_y_sin_sintoma():
     assert resp_indet.tipo_evento == 'pregunta_aclaratoria'
     assert resp_indet.paso_id is None
     assert len(resp_indet.trazabilidad_diagnostica.get('opciones', [])) >= 2
+
+
+# ------------------------------------------------------------------------------
+# Pruebas de la Nueva Iteración: Patrón Sándwich LLM ⇄ Neo4j (M1, M2, M3)
+# ------------------------------------------------------------------------------
+
+def test_pi4_sandwich_m1_8_casos():
+    """Ejecuta los 8 casos sándwich de M1 y valida 100% de éxito y fidelidad I10."""
+    import json, os
+    from src.llm.sandwich import Sandwich, ProveedorLLM
+    from src.llm.prompts import PROMPT_EXTRACCION_M1, PROMPT_EXPLICACION_M1
+    from src.models.schemas import ExtraccionM1
+    from pi4_individuales.pi4_m1_canzio_sandwich import CASOS_M1, ejecutar_caso_m1
+
+    reg_path = os.path.join(os.path.dirname(__file__), "..", "pi4_individuales", "pi4_llm_registro_m1.json")
+    with open(reg_path, "r", encoding="utf-8") as f:
+        registro = json.load(f)
+
+    proveedor = ProveedorLLM(modo="replay", registro=registro)
+    sandwich = Sandwich(
+        prefijo="m1",
+        prompt_extraccion=PROMPT_EXTRACCION_M1,
+        prompt_explicacion=PROMPT_EXPLICACION_M1,
+        modelo_pydantic=ExtraccionM1,
+        llm=proveedor,
+        rotulo_contexto="Contexto del inmueble",
+        rotulo_mensaje="Relato del huésped"
+    )
+
+    for c in CASOS_M1:
+        res = ejecutar_caso_m1(sandwich, c)
+        assert res["exito"] is True, f"Falló caso M1 {c['id']}: {res.get('problemas_fidelidad')}"
+
+
+def test_pi4_sandwich_m2_8_casos():
+    """Ejecuta los 8 casos sándwich de M2 y valida 100% de éxito y fidelidad I10."""
+    import json, os
+    from src.llm.sandwich import Sandwich, ProveedorLLM
+    from src.llm.prompts import PROMPT_EXTRACCION_M2, PROMPT_EXPLICACION_M2
+    from src.models.schemas import ExtraccionM2
+    from pi4_individuales.pi4_m2_lopez_sandwich import CASOS_M2, ejecutar_caso_m2
+
+    reg_path = os.path.join(os.path.dirname(__file__), "..", "pi4_individuales", "pi4_llm_registro_m2.json")
+    with open(reg_path, "r", encoding="utf-8") as f:
+        registro = json.load(f)
+
+    proveedor = ProveedorLLM(modo="replay", registro=registro)
+    sandwich = Sandwich(
+        prefijo="m2",
+        prompt_extraccion=PROMPT_EXTRACCION_M2,
+        prompt_explicacion=PROMPT_EXPLICACION_M2,
+        modelo_pydantic=ExtraccionM2,
+        llm=proveedor,
+        rotulo_contexto="Contexto de la unidad",
+        rotulo_mensaje="Mensaje del huésped"
+    )
+
+    for c in CASOS_M2:
+        res = ejecutar_caso_m2(sandwich, c)
+        assert res["exito"] is True, f"Falló caso M2 {c['id']}: {res.get('problemas_fidelidad')}"
+
+
+def test_pi4_sandwich_m3_8_casos():
+    """Ejecuta los 8 casos sándwich de M3 y valida 100% de éxito y fidelidad I10."""
+    import json, os
+    from src.llm.sandwich import Sandwich, ProveedorLLM
+    from src.llm.prompts import PROMPT_EXTRACCION_M3, PROMPT_EXPLICACION_M3
+    from src.models.schemas import ExtraccionM3
+    from pi4_individuales.pi4_m3_montero_sandwich import CASOS_M3, ejecutar_caso_m3
+
+    reg_path = os.path.join(os.path.dirname(__file__), "..", "pi4_individuales", "pi4_llm_registro_m3.json")
+    with open(reg_path, "r", encoding="utf-8") as f:
+        registro = json.load(f)
+
+    proveedor = ProveedorLLM(modo="replay", registro=registro)
+    sandwich = Sandwich(
+        prefijo="m3",
+        prompt_extraccion=PROMPT_EXTRACCION_M3,
+        prompt_explicacion=PROMPT_EXPLICACION_M3,
+        modelo_pydantic=ExtraccionM3,
+        llm=proveedor,
+        rotulo_contexto="Contexto del sistema",
+        rotulo_mensaje="Consulta del usuario"
+    )
+
+    for c in CASOS_M3:
+        res = ejecutar_caso_m3(sandwich, c)
+        assert res["exito"] is True, f"Falló caso M3 {c['id']}: {res.get('problemas_fidelidad')}"
+
+
+def test_hallazgos_y_alertas_emergencia():
+    """Valida resolución de los hallazgos: no mención de R2, alarma de gas contextual, despacho de alerta."""
+    from src.orchestrator.master_orchestrator import master_orchestrator
+    from src.models.schemas import GuestMessageRequest
+    from src.llm.gemini_client import gemini_client
+
+    # Hallazgo #5: Mención inocua de gas no dispara alarma
+    es_seg, _, _ = gemini_client._detectar_alarma_seguridad("Tengo una hornalla a gas apagada")
+    assert es_seg is False
+
+    # Fuga real de gas sí dispara alarma
+    es_seg_real, _, _ = gemini_client._detectar_alarma_seguridad("Siento un fuerte olor a gas")
+    assert es_seg_real is True
+
+    # Hallazgo #6: Inmueble inexistente
+    res_inex = master_orchestrator.procesar_mensaje_huesped(
+        GuestMessageRequest(inmueble_id="inm999", mensaje="No anda nada")
+    )
+    assert res_inex.tipo_evento == 'fuera_de_dominio'
+    assert "no se encuentra registrado" in res_inex.mensaje_para_huesped
+
+    # Hallazgo #4: Alerta de emergencia despachada
+    res_em = master_orchestrator.procesar_mensaje_huesped(
+        GuestMessageRequest(inmueble_id="inm105", mensaje="Hay mucho olor a gas en la cocina")
+    )
+    assert res_em.tipo_evento == 'emergencia'
+    assert res_em.alerta_emergencia is not None
+    assert res_em.alerta_emergencia.tipo_emergencia == "gas_o_seguridad_critica"
+    assert len(master_orchestrator.listar_alertas_emergencia()) >= 1

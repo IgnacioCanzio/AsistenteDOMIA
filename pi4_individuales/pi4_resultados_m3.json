@@ -1,0 +1,498 @@
+[
+  {
+    "caso": "B1",
+    "nombre": "Incidencia difusa pura (aire acondicionado, Depto 103)",
+    "tipo_obtenido": "ficha_incidencia",
+    "tipo_esperado": "ficha_incidencia",
+    "incidencia": "inc4",
+    "extraccion": {
+      "inmueble_id": "inm103",
+      "servicio_id": "climatizacion",
+      "pide_justificacion": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "ficha_incidencia",
+      "incidencia": "inc4",
+      "unidad": "Depto 103",
+      "artefacto": "spl01",
+      "servicio": "climatizacion",
+      "servicio_esencial": false,
+      "causa_diagnosticada": "gas_refrigerante_bajo",
+      "resuelta_por_huesped": false,
+      "riesgo_seguridad": false,
+      "temperatura_c": 38.0,
+      "horas_restantes": 48.0,
+      "via_evaluacion": "difusa",
+      "puntaje_difuso": 76.5,
+      "nivel_calculado": 4,
+      "piso_minimo_servicio_esencial": null,
+      "nivel_final": 4,
+      "prioridad": "Alta",
+      "canal": "alerta_inmediata",
+      "activacion_maxima": 0.639,
+      "reglas_activadas": [
+        {
+          "regla": "F1",
+          "alfa": 0.64,
+          "consecuente": "Emergencia"
+        },
+        {
+          "regla": "F2",
+          "alfa": 0.381,
+          "consecuente": "Alta"
+        },
+        {
+          "regla": "F3",
+          "alfa": 0.119,
+          "consecuente": "Alta"
+        },
+        {
+          "regla": "F6",
+          "alfa": 0.64,
+          "consecuente": "Alta"
+        }
+      ]
+    },
+    "respuesta_final": "Hola. Te informo el diagnóstico para el Depto 103: el equipo de climatización presenta la causa gas refrigerante bajo.El caso se evaluó por vía difusa con un puntaje de 76,5, considerando una temperatura de 38 °C y 48 horas restantes de estadía. Las reglas con mayor grado de activación determinaron un nivel final 4 (Alta prioridad).Debido a esta clasificación, el aviso se gestiona mediante alerta inmediata. El servicio no es esencial, por lo que no aplica piso mínimo. Quedamos a disposición para ayudarte a coordinar la asistencia correspondiente.¿Querés que te detalle cómo gestionar la alerta inmediata?",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "C9_Buscar_Incidencia",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia)-[:AFECTA_A]->(i:Inmueble {inmueble_id: $inmueble_id})\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nWHERE $servicio_id IS NULL OR sv.servicio_id = $servicio_id\nRETURN inc.incidencia_id AS incidencia,\n       i.nombre AS inmueble,\n       sv.servicio_id AS servicio,\n       inc.estado AS estado\nORDER BY incidencia;",
+        "params": {
+          "inmueble_id": "inm103",
+          "servicio_id": "climatizacion"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C4_Severidad_Integrada_M3",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nWHERE inc.estado = 'resuelta_por_huesped'\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S2_cierre' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, null AS nivel_final,\n       'sin_aviso' AS prioridad, 'sin_aviso' AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:true})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nMATCH (n:NivelSeveridad {nivel:5})\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S1_emergencia' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, 5 AS nivel_final,\n       n.prioridad AS prioridad, n.canal AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:false})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id, estado:'escalada'})-[:AFECTA_A]->(sv:Servicio),\n      (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nMATCH (ea:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Alto'}), (ee:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Extremo'})\nWITH inc, sv, ctx,\n     exp(-((ctx.temperatura_actual - ea.centro)^2) / (2 * ea.sigma^2)) AS mu_alto,\n     CASE WHEN ctx.temperatura_actual >= ee.centro THEN 1.0\n          ELSE exp(-((ctx.temperatura_actual - ee.centro)^2) / (2 * ee.sigma^2)) END AS mu_extremo\nWITH inc, sv, ctx,\n     CASE WHEN sv.tipo = 'climatizacion'\n          THEN sv.sensibilidad_base + 4.5 * (CASE WHEN mu_alto > mu_extremo THEN mu_alto ELSE mu_extremo END)\n          ELSE sv.sensibilidad_base END AS s_clim\nUNWIND [{v:'ImpactoClimatico', x: ctx.temperatura_actual}, {v:'TiempoRestante', x: ctx.horas_restantes}, {v:'SensibilidadServicio', x: s_clim}] AS ent\nMATCH (:VariableLinguistica {variable_id: ent.v})-[:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH inc, sv, e,\n     CASE WHEN (e.hombro = 'izq' AND ent.x <= e.centro) OR (e.hombro = 'der' AND ent.x >= e.centro) THEN 1.0\n          ELSE exp(-((ent.x - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nMATCH (r:ReglaDifusa {modulo:'M3', activa:true})-[ea:EVALUA_ANTECEDENTE]->(e)\nWITH inc, sv, r, ea.grupo AS grupo, max(CASE WHEN ea.negada THEN 1.0 - mu ELSE mu END) AS mu_grupo\nWITH inc, sv, r, min(mu_grupo) AS alfa\nMATCH (r)-[:IMPLICA_CONSECUENTE]->(s:EtiquetaDifusa)\nWITH inc, sv, s, max(alfa) AS alfa_s\nWITH inc, sv, collect({c: s.centro, sg: s.sigma, h: s.hombro, a: alfa_s}) AS salida, max(alfa_s) AS alfa_max\nUNWIND range(0, 4000) AS i\nUNWIND salida AS o\nWITH inc, sv, alfa_max, i / 40.0 AS y, o,\n     CASE WHEN (o.h = 'izq' AND i / 40.0 <= o.c) OR (o.h = 'der' AND i / 40.0 >= o.c) THEN 1.0\n          ELSE exp(-((i / 40.0 - o.c)^2) / (2 * o.sg^2)) END AS m\nWITH inc, sv, alfa_max, y, max(CASE WHEN m < o.a THEN m ELSE o.a END) AS agg\nWITH inc, sv, alfa_max, sum(y * agg) / sum(agg) AS puntaje\nWITH inc, sv, alfa_max, puntaje,\n     CASE WHEN alfa_max < 0.2 THEN 3\n          WHEN puntaje >= 80 THEN 5 WHEN puntaje >= 60 THEN 4 WHEN puntaje >= 40 THEN 3\n          WHEN puntaje >= 20 THEN 2 ELSE 1 END AS nivel_calc,\n     CASE WHEN sv.esencial THEN 4 ELSE 1 END AS piso\nWITH inc, sv, alfa_max, puntaje, nivel_calc, piso,\n     CASE WHEN nivel_calc > piso THEN nivel_calc ELSE piso END AS nivel_final\nMATCH (n:NivelSeveridad {nivel: nivel_final})\nRETURN inc.incidencia_id AS incidencia,\n       sv.servicio_id AS servicio,\n       'difusa' AS via,\n       round(puntaje, 1) AS puntaje,\n       nivel_calc AS nivel_calculado,\n       piso AS piso_r5,\n       nivel_final,\n       n.prioridad AS prioridad,\n       n.canal AS canal,\n       round(alfa_max, 3) AS activacion_maxima;",
+        "params": {
+          "incidencia_id": "inc4"
+        },
+        "latency_ms": 4.94,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C6_Payload_LLM",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(i:Inmueble)\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nMATCH (df:DiagnosticoFinal)-[:CLASIFICA]->(inc)\nOPTIONAL MATCH (inc)-[:VINCULA]->(a:Artefacto)\nOPTIONAL MATCH (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nOPTIONAL MATCH (df)-[:DIAGNOSTICA]->(cr:CausaRaiz)\nRETURN {\n  incidencia: inc.incidencia_id,\n  inmueble: i.nombre,\n  artefacto: a.artefacto_id,\n  servicio: sv.servicio_id,\n  servicio_esencial: sv.esencial,\n  causa: df.causa_diagnosticada,\n  resoluble_por_huesped: df.resoluble_por_huesped,\n  riesgo_seguridad: df.riesgo_seguridad,\n  temperatura: ctx.temperatura_actual,\n  horas_restantes: ctx.horas_restantes,\n  dato_estimado: ctx.dato_estimado\n} AS payload;",
+        "params": {
+          "incidencia_id": "inc4"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C8_Explicacion_Reglas",
+        "source": "memoria_respaldo",
+        "query": "MATCH (c:CasoDifuso {caso_id: $caso_id})-[a:ALIMENTA_VARIABLE]->(v:VariableLinguistica)-[:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH c, e,\n     CASE WHEN (e.hombro = 'izq' AND a.valor_crisp <= e.centro) OR (e.hombro = 'der' AND a.valor_crisp >= e.centro) THEN 1.0\n          ELSE exp(-((a.valor_crisp - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nMATCH (r:ReglaDifusa {modulo: c.modulo, activa: true})-[ea:EVALUA_ANTECEDENTE]->(e)\nWITH c, r, ea.grupo AS grupo, max(CASE WHEN ea.negada THEN 1.0 - mu ELSE mu END) AS mu_grupo\nWITH c, r, min(mu_grupo) AS alfa\nWHERE alfa > 0.05\nRETURN c.caso_id AS caso,\n       r.regla_id AS regla,\n       round(alfa, 3) AS alfa,\n       r.consecuente AS consecuente,\n       r.origen_pg1 AS regla_pg1,\n       r.expresion AS expresion\nORDER BY alfa DESC, regla;",
+        "params": {
+          "caso_id": "M3-caso1"
+        },
+        "latency_ms": 5.09,
+        "rows_returned": 4
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "B2",
+    "nombre": "Piso de servicio esencial (R5) y pedido de justificación",
+    "tipo_obtenido": "ficha_incidencia",
+    "tipo_esperado": "ficha_incidencia",
+    "incidencia": "inc2",
+    "extraccion": {
+      "inmueble_id": "inm102",
+      "servicio_id": "acceso_principal",
+      "pide_justificacion": true,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "ficha_incidencia",
+      "incidencia": "inc2",
+      "unidad": "Depto 102",
+      "artefacto": "cer01",
+      "servicio": "acceso_principal",
+      "servicio_esencial": true,
+      "causa_diagnosticada": "bloqueo sin causa determinada",
+      "resuelta_por_huesped": false,
+      "riesgo_seguridad": false,
+      "temperatura_c": 22.0,
+      "horas_restantes": 12.0,
+      "via_evaluacion": "difusa",
+      "puntaje_difuso": 40.5,
+      "nivel_calculado": 3,
+      "piso_minimo_servicio_esencial": 4,
+      "nivel_final": 4,
+      "prioridad": "Alta",
+      "canal": "alerta_inmediata",
+      "activacion_maxima": 0.038,
+      "reglas_activadas": []
+    },
+    "respuesta_final": "Hola. Te paso el reporte de la incidencia registrada en el Depto 102.Se detectó una falla en la cerradura principal (cer01) por \"bloqueo sin causa determinada\". El diagnóstico difuso dio un puntaje de 40.5 (nivel 3), con 22 °C de temperatura y 12 horas restantes de estadía. Sin embargo, al tratarse de un servicio esencial con piso mínimo obligatorio, el nivel final asignado es 4, con prioridad Alta. Por esta razón, la notificación se emite mediante alerta inmediata.",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "C9_Buscar_Incidencia",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia)-[:AFECTA_A]->(i:Inmueble {inmueble_id: $inmueble_id})\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nWHERE $servicio_id IS NULL OR sv.servicio_id = $servicio_id\nRETURN inc.incidencia_id AS incidencia,\n       i.nombre AS inmueble,\n       sv.servicio_id AS servicio,\n       inc.estado AS estado\nORDER BY incidencia;",
+        "params": {
+          "inmueble_id": "inm102",
+          "servicio_id": "acceso_principal"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C4_Severidad_Integrada_M3",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nWHERE inc.estado = 'resuelta_por_huesped'\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S2_cierre' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, null AS nivel_final,\n       'sin_aviso' AS prioridad, 'sin_aviso' AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:true})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nMATCH (n:NivelSeveridad {nivel:5})\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S1_emergencia' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, 5 AS nivel_final,\n       n.prioridad AS prioridad, n.canal AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:false})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id, estado:'escalada'})-[:AFECTA_A]->(sv:Servicio),\n      (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nMATCH (ea:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Alto'}), (ee:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Extremo'})\nWITH inc, sv, ctx,\n     exp(-((ctx.temperatura_actual - ea.centro)^2) / (2 * ea.sigma^2)) AS mu_alto,\n     CASE WHEN ctx.temperatura_actual >= ee.centro THEN 1.0\n          ELSE exp(-((ctx.temperatura_actual - ee.centro)^2) / (2 * ee.sigma^2)) END AS mu_extremo\nWITH inc, sv, ctx,\n     CASE WHEN sv.tipo = 'climatizacion'\n          THEN sv.sensibilidad_base + 4.5 * (CASE WHEN mu_alto > mu_extremo THEN mu_alto ELSE mu_extremo END)\n          ELSE sv.sensibilidad_base END AS s_clim\nUNWIND [{v:'ImpactoClimatico', x: ctx.temperatura_actual}, {v:'TiempoRestante', x: ctx.horas_restantes}, {v:'SensibilidadServicio', x: s_clim}] AS ent\nMATCH (:VariableLinguistica {variable_id: ent.v})-[:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH inc, sv, e,\n     CASE WHEN (e.hombro = 'izq' AND ent.x <= e.centro) OR (e.hombro = 'der' AND ent.x >= e.centro) THEN 1.0\n          ELSE exp(-((ent.x - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nMATCH (r:ReglaDifusa {modulo:'M3', activa:true})-[ea:EVALUA_ANTECEDENTE]->(e)\nWITH inc, sv, r, ea.grupo AS grupo, max(CASE WHEN ea.negada THEN 1.0 - mu ELSE mu END) AS mu_grupo\nWITH inc, sv, r, min(mu_grupo) AS alfa\nMATCH (r)-[:IMPLICA_CONSECUENTE]->(s:EtiquetaDifusa)\nWITH inc, sv, s, max(alfa) AS alfa_s\nWITH inc, sv, collect({c: s.centro, sg: s.sigma, h: s.hombro, a: alfa_s}) AS salida, max(alfa_s) AS alfa_max\nUNWIND range(0, 4000) AS i\nUNWIND salida AS o\nWITH inc, sv, alfa_max, i / 40.0 AS y, o,\n     CASE WHEN (o.h = 'izq' AND i / 40.0 <= o.c) OR (o.h = 'der' AND i / 40.0 >= o.c) THEN 1.0\n          ELSE exp(-((i / 40.0 - o.c)^2) / (2 * o.sg^2)) END AS m\nWITH inc, sv, alfa_max, y, max(CASE WHEN m < o.a THEN m ELSE o.a END) AS agg\nWITH inc, sv, alfa_max, sum(y * agg) / sum(agg) AS puntaje\nWITH inc, sv, alfa_max, puntaje,\n     CASE WHEN alfa_max < 0.2 THEN 3\n          WHEN puntaje >= 80 THEN 5 WHEN puntaje >= 60 THEN 4 WHEN puntaje >= 40 THEN 3\n          WHEN puntaje >= 20 THEN 2 ELSE 1 END AS nivel_calc,\n     CASE WHEN sv.esencial THEN 4 ELSE 1 END AS piso\nWITH inc, sv, alfa_max, puntaje, nivel_calc, piso,\n     CASE WHEN nivel_calc > piso THEN nivel_calc ELSE piso END AS nivel_final\nMATCH (n:NivelSeveridad {nivel: nivel_final})\nRETURN inc.incidencia_id AS incidencia,\n       sv.servicio_id AS servicio,\n       'difusa' AS via,\n       round(puntaje, 1) AS puntaje,\n       nivel_calc AS nivel_calculado,\n       piso AS piso_r5,\n       nivel_final,\n       n.prioridad AS prioridad,\n       n.canal AS canal,\n       round(alfa_max, 3) AS activacion_maxima;",
+        "params": {
+          "incidencia_id": "inc2"
+        },
+        "latency_ms": 4.87,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C6_Payload_LLM",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(i:Inmueble)\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nMATCH (df:DiagnosticoFinal)-[:CLASIFICA]->(inc)\nOPTIONAL MATCH (inc)-[:VINCULA]->(a:Artefacto)\nOPTIONAL MATCH (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nOPTIONAL MATCH (df)-[:DIAGNOSTICA]->(cr:CausaRaiz)\nRETURN {\n  incidencia: inc.incidencia_id,\n  inmueble: i.nombre,\n  artefacto: a.artefacto_id,\n  servicio: sv.servicio_id,\n  servicio_esencial: sv.esencial,\n  causa: df.causa_diagnosticada,\n  resoluble_por_huesped: df.resoluble_por_huesped,\n  riesgo_seguridad: df.riesgo_seguridad,\n  temperatura: ctx.temperatura_actual,\n  horas_restantes: ctx.horas_restantes,\n  dato_estimado: ctx.dato_estimado\n} AS payload;",
+        "params": {
+          "incidencia_id": "inc2"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C8_Explicacion_Reglas",
+        "source": "memoria_respaldo",
+        "query": "MATCH (c:CasoDifuso {caso_id: $caso_id})-[a:ALIMENTA_VARIABLE]->(v:VariableLinguistica)-[:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH c, e,\n     CASE WHEN (e.hombro = 'izq' AND a.valor_crisp <= e.centro) OR (e.hombro = 'der' AND a.valor_crisp >= e.centro) THEN 1.0\n          ELSE exp(-((a.valor_crisp - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nMATCH (r:ReglaDifusa {modulo: c.modulo, activa: true})-[ea:EVALUA_ANTECEDENTE]->(e)\nWITH c, r, ea.grupo AS grupo, max(CASE WHEN ea.negada THEN 1.0 - mu ELSE mu END) AS mu_grupo\nWITH c, r, min(mu_grupo) AS alfa\nWHERE alfa > 0.05\nRETURN c.caso_id AS caso,\n       r.regla_id AS regla,\n       round(alfa, 3) AS alfa,\n       r.consecuente AS consecuente,\n       r.origen_pg1 AS regla_pg1,\n       r.expresion AS expresion\nORDER BY alfa DESC, regla;",
+        "params": {
+          "caso_id": "M3-inc2"
+        },
+        "latency_ms": 5.05,
+        "rows_returned": 0
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "B3",
+    "nombre": "Caso límite difuso: estado y canal de aviso (Depto 104)",
+    "tipo_obtenido": "ficha_incidencia",
+    "tipo_esperado": "ficha_incidencia",
+    "incidencia": "inc5",
+    "extraccion": {
+      "inmueble_id": "inm104",
+      "servicio_id": "agua_caliente",
+      "pide_justificacion": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "ficha_incidencia",
+      "incidencia": "inc5",
+      "unidad": "Depto 104",
+      "artefacto": "te01",
+      "servicio": "agua_caliente",
+      "servicio_esencial": false,
+      "causa_diagnosticada": "resistencia_quemada",
+      "resuelta_por_huesped": false,
+      "riesgo_seguridad": false,
+      "temperatura_c": 31.0,
+      "horas_restantes": 3.5,
+      "via_evaluacion": "difusa",
+      "puntaje_difuso": 48.7,
+      "nivel_calculado": 3,
+      "piso_minimo_servicio_esencial": null,
+      "nivel_final": 3,
+      "prioridad": "Media",
+      "canal": "cola_priorizada",
+      "activacion_maxima": 0.783,
+      "reglas_activadas": [
+        {
+          "regla": "F3",
+          "alfa": 0.217,
+          "consecuente": "Alta"
+        },
+        {
+          "regla": "F5",
+          "alfa": 0.783,
+          "consecuente": "Media"
+        }
+      ]
+    },
+    "respuesta_final": "Te informo el diagnóstico de la incidencia registrada en el Depto 104 para el equipo de agua caliente: la causa detectada es resistencia quemada.La evaluación difusa determinó un nivel final 3 (prioridad Media) con un puntaje de 48,7, debido a una temperatura de 31 °C y 3,5 horas restantes de estadía. Las reglas con mayor grado de activación aportaron a este resultado (con un valor máximo de 0,783).Al no tratarse de un servicio esencial ni haber riesgo de seguridad, se mantiene el nivel calculado. La notificación se enviará a través de la cola priorizada. Quedamos a disposición por cualquier consulta sobre esta unidad.",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "C9_Buscar_Incidencia",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia)-[:AFECTA_A]->(i:Inmueble {inmueble_id: $inmueble_id})\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nWHERE $servicio_id IS NULL OR sv.servicio_id = $servicio_id\nRETURN inc.incidencia_id AS incidencia,\n       i.nombre AS inmueble,\n       sv.servicio_id AS servicio,\n       inc.estado AS estado\nORDER BY incidencia;",
+        "params": {
+          "inmueble_id": "inm104",
+          "servicio_id": "agua_caliente"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C4_Severidad_Integrada_M3",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nWHERE inc.estado = 'resuelta_por_huesped'\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S2_cierre' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, null AS nivel_final,\n       'sin_aviso' AS prioridad, 'sin_aviso' AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:true})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nMATCH (n:NivelSeveridad {nivel:5})\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S1_emergencia' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, 5 AS nivel_final,\n       n.prioridad AS prioridad, n.canal AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:false})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id, estado:'escalada'})-[:AFECTA_A]->(sv:Servicio),\n      (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nMATCH (ea:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Alto'}), (ee:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Extremo'})\nWITH inc, sv, ctx,\n     exp(-((ctx.temperatura_actual - ea.centro)^2) / (2 * ea.sigma^2)) AS mu_alto,\n     CASE WHEN ctx.temperatura_actual >= ee.centro THEN 1.0\n          ELSE exp(-((ctx.temperatura_actual - ee.centro)^2) / (2 * ee.sigma^2)) END AS mu_extremo\nWITH inc, sv, ctx,\n     CASE WHEN sv.tipo = 'climatizacion'\n          THEN sv.sensibilidad_base + 4.5 * (CASE WHEN mu_alto > mu_extremo THEN mu_alto ELSE mu_extremo END)\n          ELSE sv.sensibilidad_base END AS s_clim\nUNWIND [{v:'ImpactoClimatico', x: ctx.temperatura_actual}, {v:'TiempoRestante', x: ctx.horas_restantes}, {v:'SensibilidadServicio', x: s_clim}] AS ent\nMATCH (:VariableLinguistica {variable_id: ent.v})-[:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH inc, sv, e,\n     CASE WHEN (e.hombro = 'izq' AND ent.x <= e.centro) OR (e.hombro = 'der' AND ent.x >= e.centro) THEN 1.0\n          ELSE exp(-((ent.x - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nMATCH (r:ReglaDifusa {modulo:'M3', activa:true})-[ea:EVALUA_ANTECEDENTE]->(e)\nWITH inc, sv, r, ea.grupo AS grupo, max(CASE WHEN ea.negada THEN 1.0 - mu ELSE mu END) AS mu_grupo\nWITH inc, sv, r, min(mu_grupo) AS alfa\nMATCH (r)-[:IMPLICA_CONSECUENTE]->(s:EtiquetaDifusa)\nWITH inc, sv, s, max(alfa) AS alfa_s\nWITH inc, sv, collect({c: s.centro, sg: s.sigma, h: s.hombro, a: alfa_s}) AS salida, max(alfa_s) AS alfa_max\nUNWIND range(0, 4000) AS i\nUNWIND salida AS o\nWITH inc, sv, alfa_max, i / 40.0 AS y, o,\n     CASE WHEN (o.h = 'izq' AND i / 40.0 <= o.c) OR (o.h = 'der' AND i / 40.0 >= o.c) THEN 1.0\n          ELSE exp(-((i / 40.0 - o.c)^2) / (2 * o.sg^2)) END AS m\nWITH inc, sv, alfa_max, y, max(CASE WHEN m < o.a THEN m ELSE o.a END) AS agg\nWITH inc, sv, alfa_max, sum(y * agg) / sum(agg) AS puntaje\nWITH inc, sv, alfa_max, puntaje,\n     CASE WHEN alfa_max < 0.2 THEN 3\n          WHEN puntaje >= 80 THEN 5 WHEN puntaje >= 60 THEN 4 WHEN puntaje >= 40 THEN 3\n          WHEN puntaje >= 20 THEN 2 ELSE 1 END AS nivel_calc,\n     CASE WHEN sv.esencial THEN 4 ELSE 1 END AS piso\nWITH inc, sv, alfa_max, puntaje, nivel_calc, piso,\n     CASE WHEN nivel_calc > piso THEN nivel_calc ELSE piso END AS nivel_final\nMATCH (n:NivelSeveridad {nivel: nivel_final})\nRETURN inc.incidencia_id AS incidencia,\n       sv.servicio_id AS servicio,\n       'difusa' AS via,\n       round(puntaje, 1) AS puntaje,\n       nivel_calc AS nivel_calculado,\n       piso AS piso_r5,\n       nivel_final,\n       n.prioridad AS prioridad,\n       n.canal AS canal,\n       round(alfa_max, 3) AS activacion_maxima;",
+        "params": {
+          "incidencia_id": "inc5"
+        },
+        "latency_ms": 5.24,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C6_Payload_LLM",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(i:Inmueble)\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nMATCH (df:DiagnosticoFinal)-[:CLASIFICA]->(inc)\nOPTIONAL MATCH (inc)-[:VINCULA]->(a:Artefacto)\nOPTIONAL MATCH (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nOPTIONAL MATCH (df)-[:DIAGNOSTICA]->(cr:CausaRaiz)\nRETURN {\n  incidencia: inc.incidencia_id,\n  inmueble: i.nombre,\n  artefacto: a.artefacto_id,\n  servicio: sv.servicio_id,\n  servicio_esencial: sv.esencial,\n  causa: df.causa_diagnosticada,\n  resoluble_por_huesped: df.resoluble_por_huesped,\n  riesgo_seguridad: df.riesgo_seguridad,\n  temperatura: ctx.temperatura_actual,\n  horas_restantes: ctx.horas_restantes,\n  dato_estimado: ctx.dato_estimado\n} AS payload;",
+        "params": {
+          "incidencia_id": "inc5"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C8_Explicacion_Reglas",
+        "source": "memoria_respaldo",
+        "query": "MATCH (c:CasoDifuso {caso_id: $caso_id})-[a:ALIMENTA_VARIABLE]->(v:VariableLinguistica)-[:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH c, e,\n     CASE WHEN (e.hombro = 'izq' AND a.valor_crisp <= e.centro) OR (e.hombro = 'der' AND a.valor_crisp >= e.centro) THEN 1.0\n          ELSE exp(-((a.valor_crisp - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nMATCH (r:ReglaDifusa {modulo: c.modulo, activa: true})-[ea:EVALUA_ANTECEDENTE]->(e)\nWITH c, r, ea.grupo AS grupo, max(CASE WHEN ea.negada THEN 1.0 - mu ELSE mu END) AS mu_grupo\nWITH c, r, min(mu_grupo) AS alfa\nWHERE alfa > 0.05\nRETURN c.caso_id AS caso,\n       r.regla_id AS regla,\n       round(alfa, 3) AS alfa,\n       r.consecuente AS consecuente,\n       r.origen_pg1 AS regla_pg1,\n       r.expresion AS expresion\nORDER BY alfa DESC, regla;",
+        "params": {
+          "caso_id": "M3-limite"
+        },
+        "latency_ms": 5.52,
+        "rows_returned": 2
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "B4",
+    "nombre": "Cierre silencioso S2: el huésped lo resolvió",
+    "tipo_obtenido": "ficha_incidencia",
+    "tipo_esperado": "ficha_incidencia",
+    "incidencia": "inc1",
+    "extraccion": {
+      "inmueble_id": "inm101",
+      "servicio_id": "agua_caliente",
+      "pide_justificacion": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "ficha_incidencia",
+      "incidencia": "inc1",
+      "unidad": "Depto 101",
+      "artefacto": "tg01",
+      "servicio": "agua_caliente",
+      "servicio_esencial": false,
+      "causa_diagnosticada": "piloto_apagado",
+      "resuelta_por_huesped": true,
+      "riesgo_seguridad": false,
+      "temperatura_c": null,
+      "horas_restantes": null,
+      "via_evaluacion": "S2_cierre",
+      "puntaje_difuso": null,
+      "nivel_calculado": null,
+      "piso_minimo_servicio_esencial": null,
+      "nivel_final": null,
+      "prioridad": "sin_aviso",
+      "canal": "sin_aviso",
+      "activacion_maxima": null,
+      "reglas_activadas": []
+    },
+    "respuesta_final": "En el Depto 101, el inconveniente con el agua caliente (equipo tg01) diagnosticado como piloto apagado fue resuelto directamente por el huésped.Al evaluarse por la vía de cierre, no se envió ningún aviso al anfitrión ni fue necesario calcular un nivel de severidad. La prioridad y el canal de notificación se determinaron como \"sin aviso\", dado que la incidencia quedó solucionada en la propia propiedad.¿Querés revisar los detalles de alguna otra incidencia registrada?",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "C9_Buscar_Incidencia",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia)-[:AFECTA_A]->(i:Inmueble {inmueble_id: $inmueble_id})\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nWHERE $servicio_id IS NULL OR sv.servicio_id = $servicio_id\nRETURN inc.incidencia_id AS incidencia,\n       i.nombre AS inmueble,\n       sv.servicio_id AS servicio,\n       inc.estado AS estado\nORDER BY incidencia;",
+        "params": {
+          "inmueble_id": "inm101",
+          "servicio_id": "agua_caliente"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C4_Severidad_Integrada_M3",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nWHERE inc.estado = 'resuelta_por_huesped'\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S2_cierre' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, null AS nivel_final,\n       'sin_aviso' AS prioridad, 'sin_aviso' AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:true})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nMATCH (n:NivelSeveridad {nivel:5})\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S1_emergencia' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, 5 AS nivel_final,\n       n.prioridad AS prioridad, n.canal AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:false})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id, estado:'escalada'})-[:AFECTA_A]->(sv:Servicio),\n      (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nMATCH (ea:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Alto'}), (ee:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Extremo'})\nWITH inc, sv, ctx,\n     exp(-((ctx.temperatura_actual - ea.centro)^2) / (2 * ea.sigma^2)) AS mu_alto,\n     CASE WHEN ctx.temperatura_actual >= ee.centro THEN 1.0\n          ELSE exp(-((ctx.temperatura_actual - ee.centro)^2) / (2 * ee.sigma^2)) END AS mu_extremo\nWITH inc, sv, ctx,\n     CASE WHEN sv.tipo = 'climatizacion'\n          THEN sv.sensibilidad_base + 4.5 * (CASE WHEN mu_alto > mu_extremo THEN mu_alto ELSE mu_extremo END)\n          ELSE sv.sensibilidad_base END AS s_clim\nUNWIND [{v:'ImpactoClimatico', x: ctx.temperatura_actual}, {v:'TiempoRestante', x: ctx.horas_restantes}, {v:'SensibilidadServicio', x: s_clim}] AS ent\nMATCH (:VariableLinguistica {variable_id: ent.v})-[:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH inc, sv, e,\n     CASE WHEN (e.hombro = 'izq' AND ent.x <= e.centro) OR (e.hombro = 'der' AND ent.x >= e.centro) THEN 1.0\n          ELSE exp(-((ent.x - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nMATCH (r:ReglaDifusa {modulo:'M3', activa:true})-[ea:EVALUA_ANTECEDENTE]->(e)\nWITH inc, sv, r, ea.grupo AS grupo, max(CASE WHEN ea.negada THEN 1.0 - mu ELSE mu END) AS mu_grupo\nWITH inc, sv, r, min(mu_grupo) AS alfa\nMATCH (r)-[:IMPLICA_CONSECUENTE]->(s:EtiquetaDifusa)\nWITH inc, sv, s, max(alfa) AS alfa_s\nWITH inc, sv, collect({c: s.centro, sg: s.sigma, h: s.hombro, a: alfa_s}) AS salida, max(alfa_s) AS alfa_max\nUNWIND range(0, 4000) AS i\nUNWIND salida AS o\nWITH inc, sv, alfa_max, i / 40.0 AS y, o,\n     CASE WHEN (o.h = 'izq' AND i / 40.0 <= o.c) OR (o.h = 'der' AND i / 40.0 >= o.c) THEN 1.0\n          ELSE exp(-((i / 40.0 - o.c)^2) / (2 * o.sg^2)) END AS m\nWITH inc, sv, alfa_max, y, max(CASE WHEN m < o.a THEN m ELSE o.a END) AS agg\nWITH inc, sv, alfa_max, sum(y * agg) / sum(agg) AS puntaje\nWITH inc, sv, alfa_max, puntaje,\n     CASE WHEN alfa_max < 0.2 THEN 3\n          WHEN puntaje >= 80 THEN 5 WHEN puntaje >= 60 THEN 4 WHEN puntaje >= 40 THEN 3\n          WHEN puntaje >= 20 THEN 2 ELSE 1 END AS nivel_calc,\n     CASE WHEN sv.esencial THEN 4 ELSE 1 END AS piso\nWITH inc, sv, alfa_max, puntaje, nivel_calc, piso,\n     CASE WHEN nivel_calc > piso THEN nivel_calc ELSE piso END AS nivel_final\nMATCH (n:NivelSeveridad {nivel: nivel_final})\nRETURN inc.incidencia_id AS incidencia,\n       sv.servicio_id AS servicio,\n       'difusa' AS via,\n       round(puntaje, 1) AS puntaje,\n       nivel_calc AS nivel_calculado,\n       piso AS piso_r5,\n       nivel_final,\n       n.prioridad AS prioridad,\n       n.canal AS canal,\n       round(alfa_max, 3) AS activacion_maxima;",
+        "params": {
+          "incidencia_id": "inc1"
+        },
+        "latency_ms": 0.02,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C6_Payload_LLM",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(i:Inmueble)\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nMATCH (df:DiagnosticoFinal)-[:CLASIFICA]->(inc)\nOPTIONAL MATCH (inc)-[:VINCULA]->(a:Artefacto)\nOPTIONAL MATCH (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nOPTIONAL MATCH (df)-[:DIAGNOSTICA]->(cr:CausaRaiz)\nRETURN {\n  incidencia: inc.incidencia_id,\n  inmueble: i.nombre,\n  artefacto: a.artefacto_id,\n  servicio: sv.servicio_id,\n  servicio_esencial: sv.esencial,\n  causa: df.causa_diagnosticada,\n  resoluble_por_huesped: df.resoluble_por_huesped,\n  riesgo_seguridad: df.riesgo_seguridad,\n  temperatura: ctx.temperatura_actual,\n  horas_restantes: ctx.horas_restantes,\n  dato_estimado: ctx.dato_estimado\n} AS payload;",
+        "params": {
+          "incidencia_id": "inc1"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "B5",
+    "nombre": "Emergencia S1: nivel 5 automático",
+    "tipo_obtenido": "ficha_incidencia",
+    "tipo_esperado": "ficha_incidencia",
+    "incidencia": "inc6",
+    "extraccion": {
+      "inmueble_id": "inm105",
+      "servicio_id": null,
+      "pide_justificacion": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 0.95
+    },
+    "datos_grafo": {
+      "tipo_evento": "ficha_incidencia",
+      "incidencia": "inc6",
+      "unidad": "Depto 105",
+      "artefacto": "tg03",
+      "servicio": "agua_caliente",
+      "servicio_esencial": false,
+      "causa_diagnosticada": "fuga_de_gas_potencial",
+      "resuelta_por_huesped": false,
+      "riesgo_seguridad": true,
+      "temperatura_c": null,
+      "horas_restantes": null,
+      "via_evaluacion": "S1_emergencia",
+      "puntaje_difuso": null,
+      "nivel_calculado": null,
+      "piso_minimo_servicio_esencial": null,
+      "nivel_final": 5,
+      "prioridad": "Emergencia",
+      "canal": "alerta_inmediata",
+      "activacion_maxima": null,
+      "reglas_activadas": []
+    },
+    "respuesta_final": "En el Depto 105 registramos una incidencia en el termotanque (tg03) vinculada al servicio de agua caliente, con causa diagnosticada de fuga de gas potencial.Dado que la vía de evaluación fue una emergencia directa (S1_emergencia), por razones de seguridad el nivel final se asignó automáticamente en 5, sin requerir cálculo difuso.Debido a esto, la prioridad establecida es de Emergencia y la notificación se canalizó mediante una alerta inmediata.",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "C9_Buscar_Incidencia",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia)-[:AFECTA_A]->(i:Inmueble {inmueble_id: $inmueble_id})\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nWHERE $servicio_id IS NULL OR sv.servicio_id = $servicio_id\nRETURN inc.incidencia_id AS incidencia,\n       i.nombre AS inmueble,\n       sv.servicio_id AS servicio,\n       inc.estado AS estado\nORDER BY incidencia;",
+        "params": {
+          "inmueble_id": "inm105",
+          "servicio_id": null
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C4_Severidad_Integrada_M3",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nWHERE inc.estado = 'resuelta_por_huesped'\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S2_cierre' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, null AS nivel_final,\n       'sin_aviso' AS prioridad, 'sin_aviso' AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:true})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(sv:Servicio)\nMATCH (n:NivelSeveridad {nivel:5})\nRETURN inc.incidencia_id AS incidencia, sv.servicio_id AS servicio, 'S1_emergencia' AS via,\n       null AS puntaje, null AS nivel_calculado, null AS piso_r5, 5 AS nivel_final,\n       n.prioridad AS prioridad, n.canal AS canal, null AS activacion_maxima\n\nUNION ALL\n\nMATCH (df:DiagnosticoFinal {riesgo_seguridad:false})-[:CLASIFICA]->(inc:Incidencia {incidencia_id: $incidencia_id, estado:'escalada'})-[:AFECTA_A]->(sv:Servicio),\n      (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nMATCH (ea:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Alto'}), (ee:EtiquetaDifusa {etiqueta_id:'ImpactoClimatico.Extremo'})\nWITH inc, sv, ctx,\n     exp(-((ctx.temperatura_actual - ea.centro)^2) / (2 * ea.sigma^2)) AS mu_alto,\n     CASE WHEN ctx.temperatura_actual >= ee.centro THEN 1.0\n          ELSE exp(-((ctx.temperatura_actual - ee.centro)^2) / (2 * ee.sigma^2)) END AS mu_extremo\nWITH inc, sv, ctx,\n     CASE WHEN sv.tipo = 'climatizacion'\n          THEN sv.sensibilidad_base + 4.5 * (CASE WHEN mu_alto > mu_extremo THEN mu_alto ELSE mu_extremo END)\n          ELSE sv.sensibilidad_base END AS s_clim\nUNWIND [{v:'ImpactoClimatico', x: ctx.temperatura_actual}, {v:'TiempoRestante', x: ctx.horas_restantes}, {v:'SensibilidadServicio', x: s_clim}] AS ent\nMATCH (:VariableLinguistica {variable_id: ent.v})-[:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH inc, sv, e,\n     CASE WHEN (e.hombro = 'izq' AND ent.x <= e.centro) OR (e.hombro = 'der' AND ent.x >= e.centro) THEN 1.0\n          ELSE exp(-((ent.x - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nMATCH (r:ReglaDifusa {modulo:'M3', activa:true})-[ea:EVALUA_ANTECEDENTE]->(e)\nWITH inc, sv, r, ea.grupo AS grupo, max(CASE WHEN ea.negada THEN 1.0 - mu ELSE mu END) AS mu_grupo\nWITH inc, sv, r, min(mu_grupo) AS alfa\nMATCH (r)-[:IMPLICA_CONSECUENTE]->(s:EtiquetaDifusa)\nWITH inc, sv, s, max(alfa) AS alfa_s\nWITH inc, sv, collect({c: s.centro, sg: s.sigma, h: s.hombro, a: alfa_s}) AS salida, max(alfa_s) AS alfa_max\nUNWIND range(0, 4000) AS i\nUNWIND salida AS o\nWITH inc, sv, alfa_max, i / 40.0 AS y, o,\n     CASE WHEN (o.h = 'izq' AND i / 40.0 <= o.c) OR (o.h = 'der' AND i / 40.0 >= o.c) THEN 1.0\n          ELSE exp(-((i / 40.0 - o.c)^2) / (2 * o.sg^2)) END AS m\nWITH inc, sv, alfa_max, y, max(CASE WHEN m < o.a THEN m ELSE o.a END) AS agg\nWITH inc, sv, alfa_max, sum(y * agg) / sum(agg) AS puntaje\nWITH inc, sv, alfa_max, puntaje,\n     CASE WHEN alfa_max < 0.2 THEN 3\n          WHEN puntaje >= 80 THEN 5 WHEN puntaje >= 60 THEN 4 WHEN puntaje >= 40 THEN 3\n          WHEN puntaje >= 20 THEN 2 ELSE 1 END AS nivel_calc,\n     CASE WHEN sv.esencial THEN 4 ELSE 1 END AS piso\nWITH inc, sv, alfa_max, puntaje, nivel_calc, piso,\n     CASE WHEN nivel_calc > piso THEN nivel_calc ELSE piso END AS nivel_final\nMATCH (n:NivelSeveridad {nivel: nivel_final})\nRETURN inc.incidencia_id AS incidencia,\n       sv.servicio_id AS servicio,\n       'difusa' AS via,\n       round(puntaje, 1) AS puntaje,\n       nivel_calc AS nivel_calculado,\n       piso AS piso_r5,\n       nivel_final,\n       n.prioridad AS prioridad,\n       n.canal AS canal,\n       round(alfa_max, 3) AS activacion_maxima;",
+        "params": {
+          "incidencia_id": "inc6"
+        },
+        "latency_ms": 0.02,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C6_Payload_LLM",
+        "source": "memoria_respaldo",
+        "query": "MATCH (inc:Incidencia {incidencia_id: $incidencia_id})-[:AFECTA_A]->(i:Inmueble)\nMATCH (inc)-[:AFECTA_A]->(sv:Servicio)\nMATCH (df:DiagnosticoFinal)-[:CLASIFICA]->(inc)\nOPTIONAL MATCH (inc)-[:VINCULA]->(a:Artefacto)\nOPTIONAL MATCH (inc)-[:TIENE_CONTEXTO]->(ctx:ContextoIncidencia)\nOPTIONAL MATCH (df)-[:DIAGNOSTICA]->(cr:CausaRaiz)\nRETURN {\n  incidencia: inc.incidencia_id,\n  inmueble: i.nombre,\n  artefacto: a.artefacto_id,\n  servicio: sv.servicio_id,\n  servicio_esencial: sv.esencial,\n  causa: df.causa_diagnosticada,\n  resoluble_por_huesped: df.resoluble_por_huesped,\n  riesgo_seguridad: df.riesgo_seguridad,\n  temperatura: ctx.temperatura_actual,\n  horas_restantes: ctx.horas_restantes,\n  dato_estimado: ctx.dato_estimado\n} AS payload;",
+        "params": {
+          "incidencia_id": "inc6"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 1
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "E1",
+    "nombre": "Consulta fuera de dominio (receta)",
+    "tipo_obtenido": "fuera_de_dominio",
+    "tipo_esperado": "fuera_de_dominio",
+    "incidencia": null,
+    "extraccion": {
+      "inmueble_id": null,
+      "servicio_id": null,
+      "pide_justificacion": false,
+      "fuera_de_dominio": true,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "fuera_de_dominio",
+      "mensaje_fijo": "Solo puedo informar sobre la prioridad y el estado de incidencias técnicas de las unidades. Para otras consultas, comunicate con el anfitrión."
+    },
+    "respuesta_final": "Solo puedo informar sobre la prioridad y el estado de incidencias técnicas de las unidades. Para otras consultas, comunicate con el anfitrión.",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [],
+    "exito": true
+  },
+  {
+    "caso": "E2",
+    "nombre": "Consulta sin unidad identificable",
+    "tipo_obtenido": "datos_insuficientes",
+    "tipo_esperado": "datos_insuficientes",
+    "incidencia": null,
+    "extraccion": {
+      "inmueble_id": null,
+      "servicio_id": null,
+      "pide_justificacion": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 0.5
+    },
+    "datos_grafo": {
+      "tipo_evento": "datos_insuficientes",
+      "mensaje_fijo": "¿De qué unidad es la incidencia? Las unidades registradas son: 101 (Depto 101), 102 (Depto 102), 103 (Depto 103), 104 (Depto 104), 105 (Depto 105)."
+    },
+    "respuesta_final": "¿De qué unidad es la incidencia? Las unidades registradas son: 101 (Depto 101), 102 (Depto 102), 103 (Depto 103), 104 (Depto 104), 105 (Depto 105).",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [],
+    "exito": true
+  },
+  {
+    "caso": "E3",
+    "nombre": "Unidad inexistente (Depto 107)",
+    "tipo_obtenido": "datos_insuficientes",
+    "tipo_esperado": "datos_insuficientes",
+    "incidencia": null,
+    "extraccion": {
+      "inmueble_id": null,
+      "servicio_id": null,
+      "pide_justificacion": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 0.9
+    },
+    "datos_grafo": {
+      "tipo_evento": "datos_insuficientes",
+      "mensaje_fijo": "¿De qué unidad es la incidencia? Las unidades registradas son: 101 (Depto 101), 102 (Depto 102), 103 (Depto 103), 104 (Depto 104), 105 (Depto 105)."
+    },
+    "respuesta_final": "¿De qué unidad es la incidencia? Las unidades registradas son: 101 (Depto 101), 102 (Depto 102), 103 (Depto 103), 104 (Depto 104), 105 (Depto 105).",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [],
+    "exito": true
+  }
+]

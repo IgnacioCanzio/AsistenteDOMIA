@@ -75,10 +75,23 @@ class GeminiClient:
                 text = response.text
                 extracted = self._parse_json(text)
                 if extracted:
+                    # Robustez ante mención de fallas generales (no es consulta de capacidades)
+                    if any(w in user_text.lower() for w in ['problema', 'falla', 'desperfecto', 'no funciona', 'no anda', 'se rompio', 'se rompió']):
+                        extracted['es_consulta_capacidades'] = False
+
+                    # Si el usuario menciona termotanque y que no enciende / no prende, asociar con sin_agua_caliente
+                    if not extracted.get('sintoma_identificado') and any(w in user_text.lower() for w in ['termotanque', 'calefon', 'calefón']) and any(w in user_text.lower() for w in ['no enciende', 'no prende', 'apagado', 'no arranca']):
+                        extracted['sintoma_identificado'] = 'sin_agua_caliente'
+
                     if alarma_negada:
+                        extracted["es_alarma"] = False
                         extracted["alarma_negada"] = True
                         extracted["termino_alarma"] = termino
                         extracted["polaridad"] = "negativa"
+                    elif es_seguridad:
+                        extracted["es_alarma"] = True
+                        extracted["alarma_negada"] = False
+                        extracted["termino_alarma"] = termino
                     return extracted
             except Exception as e:
                 print(f"[-] Error en llamada a Gemini API ({e}). Activando fallback determinístico I14.")
@@ -183,20 +196,34 @@ class GeminiClient:
         Retorna: (es_alarma_activa, termino_detectado, es_alarma_negada)
         """
         t = texto.lower()
-        alarmas = ['gas', 'humo', 'chispa', 'quemado']
+        alarmas = ['gas', 'humo', 'chispa', 'chispas', 'quemado']
         negada_detectada = None
 
+        # Patrones de negación explícita (Regla I2)
+        patrones_negacion = [
+            r'\b(?:no\s+(?:hay|huele|sale|se\s+siente|siento|tengo|veo|percibo)?|sin|descarto|cero)\s*(?:\w+\s+){0,3}(?:gas|humo|chispa|chispas|quemado)\b',
+            r'\b(?:gas|humo|chispa|chispas|quemado)\s+(?:no\s+hay|no\s+se\s+siente|descartado)\b',
+            r'\bno\s+hay\s+olor\s+a\s+gas\b',
+            r'\btampoco\s+(?:hay|siento|huele)\s+(?:olor\s+a\s+)?gas\b'
+        ]
+        es_negada = any(re.search(p, t) for p in patrones_negacion)
+
         for al in alarmas:
+            raiz_al = 'chispa' if al.startswith('chispa') else al
             if re.search(r'\b' + al + r'\b', t):
-                # Regla I2: si está explícitamente negado ("no hay olor a gas", "no sale humo", "no huele a gas", "sin olor a gas")
-                negacion = re.search(r'\b(?:no\s+(?:hay|huele|sale|se\s+siente|tengo|veo)?|sin)\s*(?:\w+\s+){0,3}' + al + r'\b', t)
-                if negacion:
-                    negada_detectada = al
+                if es_negada:
+                    negada_detectada = raiz_al
                     continue
-                # Ignorar cuando dice "termotanque a gas" o "estufa a gas" sin mencionar olor/fuga/pérdida
-                if al == 'gas' and re.search(r'\b(?:termotanque|calefon|cocina|estufa)\s+(?:a|de)\s+gas\b', t) and not any(w in t for w in ['olor', 'huele', 'fuga', 'perdida', 'escape', 'siento']):
-                    continue
-                return True, al, False
+
+                # Hallazgo #5: Si el término es 'gas', exigir contexto de peligro, fuga u olor
+                if al == 'gas':
+                    indicios_peligro = ['olor', 'huele', 'fuga', 'perdida', 'pérdida', 'escape', 'siento', 'sale', 'fuerte', 'mucho', 'intenso', 'respiro', 'peligro']
+                    tiene_peligro = any(w in t for w in indicios_peligro)
+                    if not tiene_peligro:
+                        continue
+
+                return True, raiz_al, False
+
         if negada_detectada:
             return False, negada_detectada, True
         return False, None, False

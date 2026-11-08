@@ -5,11 +5,60 @@ Grupo 3 · Comisión 5k9 · UTN FRM · 2026
 """
 
 from typing import List, Optional, Literal, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 # ------------------------------------------------------------------------------
-# Modelos de Extracción Semántica (M1)
+# Modelos de Extracción Semántica y Sándwich (M1, M2, M3)
 # ------------------------------------------------------------------------------
+
+class ExtraccionM1(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    artefacto_mencionado: Optional[Literal["tg01", "cer01", "spl01", "te01", "tg02", "tg03"]] = None
+    sintoma_identificado: Optional[Literal["sin_agua_caliente", "teclado_sin_respuesta", "no_enfria", "olor_a_gas"]] = None
+    confianza_extraccion: float = Field(ge=0.0, le=1.0)
+    polaridad: Literal['afirmativa', 'negativa'] = 'afirmativa'
+    es_alarma: bool = False
+    termino_alarma: Optional[str] = None
+    fuera_de_dominio: bool = False
+    es_consulta_capacidades: bool = False
+    mencion_artefacto_texto: Optional[str] = None
+
+class ExtraccionM2(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    artefacto_id: Optional[Literal["tg01", "cer01", "spl01", "te01", "tg02", "tg03"]] = None
+    sintoma_id: Optional[Literal["sin_agua_caliente", "teclado_sin_respuesta", "no_enfria", "olor_a_gas"]] = None
+    causas_descartadas: List[Literal["llave_gas_cerrada", "piloto_apagado", "termica_bajada", "pilas_agotadas", "filtro_sucio"]] = Field(default_factory=list)
+    causa_resuelta: Optional[Literal["llave_gas_cerrada", "piloto_apagado", "termica_bajada", "pilas_agotadas", "filtro_sucio"]] = None
+    paso_no_puedo: bool = False
+    senal_seguridad: bool = False
+    fuera_de_dominio: bool = False
+    confianza_extraccion: float = Field(ge=0.0, le=1.0)
+
+class ExtraccionM3(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    inmueble_id: Optional[str] = Field(default=None, pattern=r"^inm\d{3}$")
+    servicio_id: Optional[Literal["agua_caliente", "acceso_principal", "climatizacion", "electricidad", "agua_potable"]] = None
+    pide_justificacion: bool = False
+    fuera_de_dominio: bool = False
+    confianza_extraccion: float = Field(ge=0.0, le=1.0)
+
+from datetime import datetime
+
+class AlertaEmergencia(BaseModel):
+    alerta_id: str
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+    inmueble_id: str
+    inmueble_nombre: str = "Departamento"
+    tipo_emergencia: str = "gas_o_seguridad_critica"
+    huesped_id: Optional[str] = None
+    sintoma_id: str = "olor_a_gas"
+    termino_alarma: Optional[str] = "gas"
+    protocolo_id: str = "pe1"
+    destinatarios: List[str] = Field(default_factory=lambda: [
+        "Anfitrión (Roberto Gómez)",
+        "Servicio de Emergencias 911 / Guardia de Gas Matriculada"
+    ])
+    estado_despacho: Literal['despachada', 'confirmada'] = 'despachada'
 
 class CandidatoExtraido(BaseModel):
     candidato_id: str
@@ -157,7 +206,10 @@ class InteractionResponse(BaseModel):
         'fuera_de_dominio',
         'artefacto_inexistente',
         'reserva_inactiva',
-        'consulta_capacidades'
+        'consulta_capacidades',
+        'ficha_incidencia',
+        'sin_incidencia',
+        'datos_insuficientes'
     ]
     mensaje_para_huesped: str
     advertencias: List[str] = []
@@ -166,5 +218,7 @@ class InteractionResponse(BaseModel):
     reporte_id: Optional[str] = None
     incidencia_id: Optional[str] = None
     ficha_incidencia: Optional[FichaIncidencia] = None
+    alerta_emergencia: Optional[AlertaEmergencia] = None
     trazabilidad_diagnostica: Dict[str, Any] = {}
+    sandwich_trace: Optional[Dict[str, Any]] = None
     cypher_traces: List[Dict[str, Any]] = []

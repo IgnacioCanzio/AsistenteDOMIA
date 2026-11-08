@@ -1,0 +1,423 @@
+[
+  {
+    "caso": "T1",
+    "nombre": "Primer paso de diagnóstico (termotanque a gas)",
+    "tipo_obtenido": "instruccion_paso",
+    "tipo_esperado": "instruccion_paso",
+    "paso_obtenido": "p1",
+    "paso_esperado": "p1",
+    "extraccion": {
+      "artefacto_id": "tg01",
+      "sintoma_id": "sin_agua_caliente",
+      "causas_descartadas": [],
+      "causa_resuelta": null,
+      "paso_no_puedo": false,
+      "senal_seguridad": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 0.95
+    },
+    "datos_grafo": {
+      "tipo_evento": "instruccion_paso",
+      "unidad": "Depto 101",
+      "artefacto": "TermotanqueGas Eskabe",
+      "sintoma": "sin_agua_caliente",
+      "causas_descartadas": [],
+      "causa_evaluada": "llave_gas_cerrada",
+      "prioridad_difusa": 68.4,
+      "paso_id": "p1",
+      "instruccion": "Verifique que la llave de gas esté abierta",
+      "advertencias": []
+    },
+    "respuesta_final": "¡Hola! Entiendo que es molesto estar sin agua caliente en el Depto 101 con el termotanque Eskabe.Te sugiero que te fijes si la llave de gas está abierta. Te indicamos este paso porque evaluamos que la causa evaluada es que la llave de gas esté cerrada.¡Cualquier duda, avisame!",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "M1_Contexto_I8_I12",
+        "source": "memoria_respaldo",
+        "query": "MATCH (i:Inmueble {inmueble_id: $inmueble_id})\n        OPTIONAL MATCH (i)-[:CONTIENE]->(a:Artefacto)\n        OPTIONAL MATCH (r:Reserva)-[:CORRESPONDE_A]->(i)\n        RETURN i.inmueble_id AS inmueble_id,\n               i.nombre AS nombre,\n               collect(DISTINCT a.artefacto_id) AS artefactos,\n               coalesce(r.activa, true) AS reserva_activa,\n               r.reserva_id AS reserva_id;",
+        "params": {
+          "inmueble_id": "inm101",
+          "huesped_id": "h1"
+        },
+        "latency_ms": 0.0,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C1_Proximo_Paso_M2",
+        "source": "memoria_respaldo",
+        "query": "MATCH (a:Artefacto {artefacto_id: $artefacto_id})-[:MANIFIESTA]->(s:Sintoma {sintoma_id: $sintoma_id})-[:ASOCIADO_A]->(c:CausaRaiz)\nWHERE any(t IN labels(a) WHERE t IN c.aplica_a)\nOPTIONAL MATCH (c)-[:SE_COMPRUEBA_CON]->(p:PasoVerificacion)\nWHERE NOT p:PasoNoDelegable\nRETURN a.artefacto_id AS artefacto,\n       c.causa_id AS causa,\n       c.frecuencia AS frecuencia,\n       c.indice_frecuencia AS indice_frecuencia,\n       c.resoluble_por_huesped AS resoluble,\n       p.paso_id AS paso,\n       p.instruccion_huesped AS instruccion,\n       p.riesgo_usuario AS riesgo,\n       p.riesgo_esfuerzo AS riesgo_esfuerzo,\n       p.advertencias AS advertencias\nORDER BY CASE p.riesgo_usuario WHEN 'bajo' THEN 1 WHEN 'medio' THEN 2 ELSE 9 END,\n         c.indice_frecuencia DESC;",
+        "params": {
+          "artefacto_id": "tg01",
+          "sintoma_id": "sin_agua_caliente"
+        },
+        "latency_ms": 0.03,
+        "rows_returned": 3
+      },
+      {
+        "query_name": "C2_Fuzzificacion_M2",
+        "source": "memoria_respaldo",
+        "query": "UNWIND $inputs AS inp\nMATCH (:VariableLinguistica {variable_id: inp.v})-[t:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH inp, e, t,\n     CASE WHEN (e.hombro = 'izq' AND inp.x <= e.centro) OR (e.hombro = 'der' AND inp.x >= e.centro) THEN 1.0\n          ELSE exp(-((inp.x - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nRETURN inp.v AS variable, inp.x AS valor, e.nombre AS etiqueta, round(mu, 3) AS pertenencia\nORDER BY variable, t.orden;",
+        "params": {
+          "inputs": [
+            {
+              "v": "FrecuenciaCausa",
+              "x": 0.75
+            },
+            {
+              "v": "RiesgoEsfuerzoPaso",
+              "x": 1.2
+            },
+            {
+              "v": "EvidenciaAcumulada",
+              "x": 0.55
+            }
+          ]
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 9
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "T2",
+    "nombre": "Descarte de hipótesis (R11) y siguiente paso",
+    "tipo_obtenido": "instruccion_paso",
+    "tipo_esperado": "instruccion_paso",
+    "paso_obtenido": "p2",
+    "paso_esperado": "p2",
+    "extraccion": {
+      "artefacto_id": "tg01",
+      "sintoma_id": "sin_agua_caliente",
+      "causas_descartadas": [
+        "llave_gas_cerrada"
+      ],
+      "causa_resuelta": null,
+      "paso_no_puedo": false,
+      "senal_seguridad": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "instruccion_paso",
+      "unidad": "Depto 101",
+      "artefacto": "TermotanqueGas Eskabe",
+      "sintoma": "sin_agua_caliente",
+      "causas_descartadas": [
+        "llave_gas_cerrada"
+      ],
+      "causa_evaluada": "piloto_apagado",
+      "prioridad_difusa": 75.9,
+      "paso_id": "p2",
+      "instruccion": "Gire la perilla a piloto y use el chispero",
+      "advertencias": [
+        "Mantenga presionada la perilla 10 segundos tras encender"
+      ]
+    },
+    "respuesta_final": "¡Hola! Qué bajón lo del agua caliente en el Depto 101 con el termotanque. Te sugiero este paso porque se evaluó que el piloto está apagado.Por favor, girá la perilla a piloto y usá el chispero.Advertencia: Mantenga presionada la perilla 10 segundos tras encender.",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "M1_Contexto_I8_I12",
+        "source": "memoria_respaldo",
+        "query": "MATCH (i:Inmueble {inmueble_id: $inmueble_id})\n        OPTIONAL MATCH (i)-[:CONTIENE]->(a:Artefacto)\n        OPTIONAL MATCH (r:Reserva)-[:CORRESPONDE_A]->(i)\n        RETURN i.inmueble_id AS inmueble_id,\n               i.nombre AS nombre,\n               collect(DISTINCT a.artefacto_id) AS artefactos,\n               coalesce(r.activa, true) AS reserva_activa,\n               r.reserva_id AS reserva_id;",
+        "params": {
+          "inmueble_id": "inm101",
+          "huesped_id": "h1"
+        },
+        "latency_ms": 0.0,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C1_Proximo_Paso_M2",
+        "source": "memoria_respaldo",
+        "query": "MATCH (a:Artefacto {artefacto_id: $artefacto_id})-[:MANIFIESTA]->(s:Sintoma {sintoma_id: $sintoma_id})-[:ASOCIADO_A]->(c:CausaRaiz)\nWHERE any(t IN labels(a) WHERE t IN c.aplica_a)\nOPTIONAL MATCH (c)-[:SE_COMPRUEBA_CON]->(p:PasoVerificacion)\nWHERE NOT p:PasoNoDelegable\nRETURN a.artefacto_id AS artefacto,\n       c.causa_id AS causa,\n       c.frecuencia AS frecuencia,\n       c.indice_frecuencia AS indice_frecuencia,\n       c.resoluble_por_huesped AS resoluble,\n       p.paso_id AS paso,\n       p.instruccion_huesped AS instruccion,\n       p.riesgo_usuario AS riesgo,\n       p.riesgo_esfuerzo AS riesgo_esfuerzo,\n       p.advertencias AS advertencias\nORDER BY CASE p.riesgo_usuario WHEN 'bajo' THEN 1 WHEN 'medio' THEN 2 ELSE 9 END,\n         c.indice_frecuencia DESC;",
+        "params": {
+          "artefacto_id": "tg01",
+          "sintoma_id": "sin_agua_caliente"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 3
+      },
+      {
+        "query_name": "C2_Fuzzificacion_M2",
+        "source": "memoria_respaldo",
+        "query": "UNWIND $inputs AS inp\nMATCH (:VariableLinguistica {variable_id: inp.v})-[t:TIENE_ETIQUETA]->(e:EtiquetaDifusa)\nWITH inp, e, t,\n     CASE WHEN (e.hombro = 'izq' AND inp.x <= e.centro) OR (e.hombro = 'der' AND inp.x >= e.centro) THEN 1.0\n          ELSE exp(-((inp.x - e.centro)^2) / (2 * e.sigma^2)) END AS mu\nRETURN inp.v AS variable, inp.x AS valor, e.nombre AS etiqueta, round(mu, 3) AS pertenencia\nORDER BY variable, t.orden;",
+        "params": {
+          "inputs": [
+            {
+              "v": "FrecuenciaCausa",
+              "x": 0.82
+            },
+            {
+              "v": "RiesgoEsfuerzoPaso",
+              "x": 4.2
+            },
+            {
+              "v": "EvidenciaAcumulada",
+              "x": 0.85
+            }
+          ]
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 9
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "T3",
+    "nombre": "Resolución confirmada por el huésped (R3)",
+    "tipo_obtenido": "cierre_exitoso",
+    "tipo_esperado": "cierre_exitoso",
+    "paso_obtenido": null,
+    "paso_esperado": null,
+    "extraccion": {
+      "artefacto_id": "tg01",
+      "sintoma_id": "sin_agua_caliente",
+      "causas_descartadas": [],
+      "causa_resuelta": "piloto_apagado",
+      "paso_no_puedo": false,
+      "senal_seguridad": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "cierre_exitoso",
+      "unidad": "Depto 101",
+      "artefacto": "TermotanqueGas Eskabe",
+      "causa_confirmada": "piloto_apagado",
+      "descripcion_causa": "piloto del termotanque apagado"
+    },
+    "respuesta_final": "¡Excelente noticia! Qué bueno saber que ya quedó resuelto el problema con el TermotanqueGas Eskabe en el Depto 101. Confirmamos que la causa era simplemente el piloto del termotanque apagado.¡Muchísimas gracias por solucionarlo! Quedo a tu disposición por cualquier otra consulta. ¡Que sigas disfrutando mucho de tu estadía!",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "M1_Contexto_I8_I12",
+        "source": "memoria_respaldo",
+        "query": "MATCH (i:Inmueble {inmueble_id: $inmueble_id})\n        OPTIONAL MATCH (i)-[:CONTIENE]->(a:Artefacto)\n        OPTIONAL MATCH (r:Reserva)-[:CORRESPONDE_A]->(i)\n        RETURN i.inmueble_id AS inmueble_id,\n               i.nombre AS nombre,\n               collect(DISTINCT a.artefacto_id) AS artefactos,\n               coalesce(r.activa, true) AS reserva_activa,\n               r.reserva_id AS reserva_id;",
+        "params": {
+          "inmueble_id": "inm101",
+          "huesped_id": "h1"
+        },
+        "latency_ms": 0.0,
+        "rows_returned": 1
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "T4",
+    "nombre": "Pasos agotados: escalada al anfitrión (split)",
+    "tipo_obtenido": "escalada_anfitrion",
+    "tipo_esperado": "escalada_anfitrion",
+    "paso_obtenido": null,
+    "paso_esperado": null,
+    "extraccion": {
+      "artefacto_id": "spl01",
+      "sintoma_id": "no_enfria",
+      "causas_descartadas": [
+        "filtro_sucio"
+      ],
+      "causa_resuelta": null,
+      "paso_no_puedo": false,
+      "senal_seguridad": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "escalada_anfitrion",
+      "unidad": "Depto 103",
+      "artefacto": "SplitAC BGH",
+      "motivo": "No restan pasos delegables al huésped. Causa probable: gas_refrigerante_bajo",
+      "causa_diagnosticada": "gas_refrigerante_bajo"
+    },
+    "respuesta_final": "Hola, te cuento que derivamos tu caso con el SplitAC BGH del Depto 103 al anfitrión. Esto se debe a que ya no quedan pasos que puedas realizar vos y la causa probable es que tenga el gas refrigerante bajo.Quedate tranquilo que el anfitrión se va a encargar de solucionarlo. Si necesitás algo más mientras tanto, avisame.",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "M1_Contexto_I8_I12",
+        "source": "memoria_respaldo",
+        "query": "MATCH (i:Inmueble {inmueble_id: $inmueble_id})\n        OPTIONAL MATCH (i)-[:CONTIENE]->(a:Artefacto)\n        OPTIONAL MATCH (r:Reserva)-[:CORRESPONDE_A]->(i)\n        RETURN i.inmueble_id AS inmueble_id,\n               i.nombre AS nombre,\n               collect(DISTINCT a.artefacto_id) AS artefactos,\n               coalesce(r.activa, true) AS reserva_activa,\n               r.reserva_id AS reserva_id;",
+        "params": {
+          "inmueble_id": "inm103",
+          "huesped_id": "h1"
+        },
+        "latency_ms": 0.0,
+        "rows_returned": 1
+      },
+      {
+        "query_name": "C1_Proximo_Paso_M2",
+        "source": "memoria_respaldo",
+        "query": "MATCH (a:Artefacto {artefacto_id: $artefacto_id})-[:MANIFIESTA]->(s:Sintoma {sintoma_id: $sintoma_id})-[:ASOCIADO_A]->(c:CausaRaiz)\nWHERE any(t IN labels(a) WHERE t IN c.aplica_a)\nOPTIONAL MATCH (c)-[:SE_COMPRUEBA_CON]->(p:PasoVerificacion)\nWHERE NOT p:PasoNoDelegable\nRETURN a.artefacto_id AS artefacto,\n       c.causa_id AS causa,\n       c.frecuencia AS frecuencia,\n       c.indice_frecuencia AS indice_frecuencia,\n       c.resoluble_por_huesped AS resoluble,\n       p.paso_id AS paso,\n       p.instruccion_huesped AS instruccion,\n       p.riesgo_usuario AS riesgo,\n       p.riesgo_esfuerzo AS riesgo_esfuerzo,\n       p.advertencias AS advertencias\nORDER BY CASE p.riesgo_usuario WHEN 'bajo' THEN 1 WHEN 'medio' THEN 2 ELSE 9 END,\n         c.indice_frecuencia DESC;",
+        "params": {
+          "artefacto_id": "spl01",
+          "sintoma_id": "no_enfria"
+        },
+        "latency_ms": 0.01,
+        "rows_returned": 2
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "T5",
+    "nombre": "Señal de seguridad: barrera I1->R1->S1",
+    "tipo_obtenido": "emergencia",
+    "tipo_esperado": "emergencia",
+    "paso_obtenido": null,
+    "paso_esperado": null,
+    "extraccion": {
+      "artefacto_id": "tg03",
+      "sintoma_id": "olor_a_gas",
+      "causas_descartadas": [],
+      "causa_resuelta": null,
+      "paso_no_puedo": false,
+      "senal_seguridad": true,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "emergencia",
+      "mensaje_fijo": "ATENCIÓN DE SEGURIDAD CRÍTICA:\nCierre de inmediato la llave general de paso, ventile todos los ambientes abriendo ventanas y salga del inmueble hacia el exterior. Por razones de seguridad estricta, NO encienda fuego, ni accione interruptores eléctricos ni timbres.\nEl anfitrión y el servicio de emergencias han sido alertados de inmediato."
+    },
+    "respuesta_final": "ATENCIÓN DE SEGURIDAD CRÍTICA:\nCierre de inmediato la llave general de paso, ventile todos los ambientes abriendo ventanas y salga del inmueble hacia el exterior. Por razones de seguridad estricta, NO encienda fuego, ni accione interruptores eléctricos ni timbres.\nEl anfitrión y el servicio de emergencias han sido alertados de inmediato.",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "M1_Contexto_I8_I12",
+        "source": "memoria_respaldo",
+        "query": "MATCH (i:Inmueble {inmueble_id: $inmueble_id})\n        OPTIONAL MATCH (i)-[:CONTIENE]->(a:Artefacto)\n        OPTIONAL MATCH (r:Reserva)-[:CORRESPONDE_A]->(i)\n        RETURN i.inmueble_id AS inmueble_id,\n               i.nombre AS nombre,\n               collect(DISTINCT a.artefacto_id) AS artefactos,\n               coalesce(r.activa, true) AS reserva_activa,\n               r.reserva_id AS reserva_id;",
+        "params": {
+          "inmueble_id": "inm105",
+          "huesped_id": "h1"
+        },
+        "latency_ms": 0.0,
+        "rows_returned": 1
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "E1",
+    "nombre": "Consulta fuera de dominio (reserva de restaurante)",
+    "tipo_obtenido": "fuera_de_dominio",
+    "tipo_esperado": "fuera_de_dominio",
+    "paso_obtenido": null,
+    "paso_esperado": null,
+    "extraccion": {
+      "artefacto_id": null,
+      "sintoma_id": null,
+      "causas_descartadas": [],
+      "causa_resuelta": null,
+      "paso_no_puedo": false,
+      "senal_seguridad": false,
+      "fuera_de_dominio": true,
+      "confianza_extraccion": 1.0
+    },
+    "datos_grafo": {
+      "tipo_evento": "fuera_de_dominio",
+      "mensaje_fijo": "Solo puedo responder consultas sobre el equipamiento e incidencias técnicas del departamento. Para reservas o consultas turísticas, por favor comunicate con el anfitrión."
+    },
+    "respuesta_final": "Solo puedo responder consultas sobre el equipamiento e incidencias técnicas del departamento. Para reservas o consultas turísticas, por favor comunicate con el anfitrión.",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "M1_Contexto_I8_I12",
+        "source": "memoria_respaldo",
+        "query": "MATCH (i:Inmueble {inmueble_id: $inmueble_id})\n        OPTIONAL MATCH (i)-[:CONTIENE]->(a:Artefacto)\n        OPTIONAL MATCH (r:Reserva)-[:CORRESPONDE_A]->(i)\n        RETURN i.inmueble_id AS inmueble_id,\n               i.nombre AS nombre,\n               collect(DISTINCT a.artefacto_id) AS artefactos,\n               coalesce(r.activa, true) AS reserva_activa,\n               r.reserva_id AS reserva_id;",
+        "params": {
+          "inmueble_id": "inm101",
+          "huesped_id": "h1"
+        },
+        "latency_ms": 0.0,
+        "rows_returned": 1
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "E2",
+    "nombre": "Mensaje incompleto: «algo no anda bien»",
+    "tipo_obtenido": "datos_insuficientes",
+    "tipo_esperado": "datos_insuficientes",
+    "paso_obtenido": null,
+    "paso_esperado": null,
+    "extraccion": {
+      "artefacto_id": null,
+      "sintoma_id": null,
+      "causas_descartadas": [],
+      "causa_resuelta": null,
+      "paso_no_puedo": false,
+      "senal_seguridad": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 0.1
+    },
+    "datos_grafo": {
+      "tipo_evento": "datos_insuficientes",
+      "mensaje_fijo": "Para ayudarte necesito saber qué equipo presenta la falla. En tu unidad hay: tg01 (TermotanqueGas Eskabe). ¿Con cuál tenés el problema y qué le pasa?"
+    },
+    "respuesta_final": "Para ayudarte necesito saber qué equipo presenta la falla. En tu unidad hay: tg01 (TermotanqueGas Eskabe). ¿Con cuál tenés el problema y qué le pasa?",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "M1_Contexto_I8_I12",
+        "source": "memoria_respaldo",
+        "query": "MATCH (i:Inmueble {inmueble_id: $inmueble_id})\n        OPTIONAL MATCH (i)-[:CONTIENE]->(a:Artefacto)\n        OPTIONAL MATCH (r:Reserva)-[:CORRESPONDE_A]->(i)\n        RETURN i.inmueble_id AS inmueble_id,\n               i.nombre AS nombre,\n               collect(DISTINCT a.artefacto_id) AS artefactos,\n               coalesce(r.activa, true) AS reserva_activa,\n               r.reserva_id AS reserva_id;",
+        "params": {
+          "inmueble_id": "inm101",
+          "huesped_id": "h1"
+        },
+        "latency_ms": 0.0,
+        "rows_returned": 1
+      }
+    ],
+    "exito": true
+  },
+  {
+    "caso": "E3",
+    "nombre": "Equipo que la unidad no tiene (aire acondicionado en Depto 101)",
+    "tipo_obtenido": "datos_insuficientes",
+    "tipo_esperado": "datos_insuficientes",
+    "paso_obtenido": null,
+    "paso_esperado": null,
+    "extraccion": {
+      "artefacto_id": null,
+      "sintoma_id": "no_enfria",
+      "causas_descartadas": [],
+      "causa_resuelta": null,
+      "paso_no_puedo": false,
+      "senal_seguridad": false,
+      "fuera_de_dominio": false,
+      "confianza_extraccion": 0.8
+    },
+    "datos_grafo": {
+      "tipo_evento": "datos_insuficientes",
+      "mensaje_fijo": "Para ayudarte necesito saber qué equipo presenta la falla. En tu unidad hay: tg01 (TermotanqueGas Eskabe). ¿Con cuál tenés el problema y qué le pasa?"
+    },
+    "respuesta_final": "Para ayudarte necesito saber qué equipo presenta la falla. En tu unidad hay: tg01 (TermotanqueGas Eskabe). ¿Con cuál tenés el problema y qué le pasa?",
+    "fidelidad_ok": true,
+    "problemas_fidelidad": [],
+    "consultas_cypher": [
+      {
+        "query_name": "M1_Contexto_I8_I12",
+        "source": "memoria_respaldo",
+        "query": "MATCH (i:Inmueble {inmueble_id: $inmueble_id})\n        OPTIONAL MATCH (i)-[:CONTIENE]->(a:Artefacto)\n        OPTIONAL MATCH (r:Reserva)-[:CORRESPONDE_A]->(i)\n        RETURN i.inmueble_id AS inmueble_id,\n               i.nombre AS nombre,\n               collect(DISTINCT a.artefacto_id) AS artefactos,\n               coalesce(r.activa, true) AS reserva_activa,\n               r.reserva_id AS reserva_id;",
+        "params": {
+          "inmueble_id": "inm101",
+          "huesped_id": "h1"
+        },
+        "latency_ms": 0.0,
+        "rows_returned": 1
+      }
+    ],
+    "exito": true
+  }
+]

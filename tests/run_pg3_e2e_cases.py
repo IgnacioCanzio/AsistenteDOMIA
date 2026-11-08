@@ -161,10 +161,27 @@ def run_all_e2e_cases():
     assert r_c6.ficha_incidencia.prioridad == 'Emergencia'
     assert r_c6.ficha_incidencia.canal == 'alerta_inmediata'
     assert r_c6.ficha_incidencia.via_evaluacion == 'S1_emergencia'
+    assert r_c6.alerta_emergencia is not None
+    assert len(master_orchestrator.listar_alertas_emergencia()) >= 1
     print("  -> [OK] CASO 6 SUPERADO")
 
+    # --------------------------------------------------------------------------
+    # CASO 7: Depto 103 · Consulta de Triage M3 en Lenguaje Natural (Nueva Iteración PG3)
+    # --------------------------------------------------------------------------
+    print("\n[CASO 7] Depto 103 · Consulta de Triage M3 en Lenguaje Natural (Sándwich M3)")
+    r_c7 = master_orchestrator.procesar_mensaje_huesped(GuestMessageRequest(
+        inmueble_id="inm103",
+        mensaje="¿Cómo quedó clasificada la incidencia del aire acondicionado del depto 103?"
+    ))
+    print(f"  Evento: {r_c7.tipo_evento}")
+    print(f"  Respuesta verbalizada: {r_c7.mensaje_para_huesped[:90]}...")
+    assert r_c7.tipo_evento == 'ficha_incidencia'
+    assert r_c7.sandwich_trace is not None
+    assert r_c7.sandwich_trace.get('fidelidad_ok') is True
+    print("  -> [OK] CASO 7 SUPERADO")
+
     print("\n" + "=" * 80)
-    print("RESUMEN E2E PG3: Los 6 Casos Canónicos fueron ejecutados con éxito rotundo.")
+    print("RESUMEN E2E PG3: Los 7 Casos Canónicos y de Triage fueron ejecutados con éxito rotundo.")
     print("=" * 80)
     return True
 

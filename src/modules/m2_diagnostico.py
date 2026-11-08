@@ -364,6 +364,10 @@ class ModuloM2Diagnostico:
         )
         sesion.diagnostico_final = diag_final
 
+        motivo_tecnico = motivo
+        import re
+        motivo_para_huesped = re.sub(r'\(Regla\s+[A-Z0-9_]+\)', '', motivo).strip()
+
         mensaje_huesped = (
             "Comprendo la situación. Para garantizar tu seguridad y la correcta resolución del problema, "
             "he notificado de inmediato al anfitrión para coordinar la asistencia correspondiente. Te mantendremos informado."
@@ -375,13 +379,14 @@ class ModuloM2Diagnostico:
             instruccion_huesped=mensaje_huesped,
             riesgo_usuario='alto',
             advertencias=["Intervención técnica especializada requerida"],
-            justificacion=motivo,
+            justificacion=motivo_tecnico,
             pasos_intentados=sesion.pasos_intentados,
             texto_verbalizado_llm=mensaje_huesped
         )
 
         return 'escalada_anfitrion', instruccion, diag_final, {
-            'motivo_escalada': motivo,
+            'motivo_escalada': motivo_tecnico,
+            'motivo_para_huesped': motivo_para_huesped,
             'causa_diagnosticada': causa_diag,
             'pasos_realizados': sesion.pasos_realizados
         }

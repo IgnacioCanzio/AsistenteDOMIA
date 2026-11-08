@@ -15,9 +15,16 @@ from src.db.cypher_queries import (
     C4_EVALUACION_SEVERIDAD,
     C5_TRAZA_INCIDENCIA,
     C6_PAYLOAD_LLM,
-    C8_EXPLICACION_REGLAS
+    C8_EXPLICACION_REGLAS,
+    C9_BUSCAR_INCIDENCIA
 )
 from pg2_neo4j.verificacion.ref_difuso import inferencia_mamdani
+
+CASO_DIFUSO_DE_INCIDENCIA = {
+    'inc2': 'M3-inc2',
+    'inc4': 'M3-caso1',
+    'inc5': 'M3-limite'
+}
 
 class Neo4jClient:
     def __init__(self):
@@ -151,21 +158,44 @@ class Neo4jClient:
             # Si el huésped es explícitamente 'h_inactivo' o 'reserva_vencida', simular reserva inactiva para prueba I12
             activa = False if huesped_id in ("h_inactivo", "reserva_vencida") else bool(row.get("reserva_activa", True))
             return {
+                "existe": True,
                 "inmueble_id": row.get("inmueble_id", inmueble_id),
                 "nombre": row.get("nombre", f"Depto {inmueble_id}"),
                 "artefactos": row.get("artefactos", []),
                 "reserva_activa": activa,
                 "reserva_id": row.get("reserva_id", f"res_{inmueble_id}")
             }
-        inm = self.inmuebles.get(inmueble_id, {"nombre": f"Inmueble {inmueble_id}", "artefactos": []})
-        activa = False if huesped_id in ("h_inactivo", "reserva_vencida") else inm.get("reserva_activa", True)
+        
+        # Si no se encontró en la base o se usa mock store
+        if inmueble_id in self.inmuebles:
+            inm = self.inmuebles[inmueble_id]
+            activa = False if huesped_id in ("h_inactivo", "reserva_vencida") else inm.get("reserva_activa", True)
+            return {
+                "existe": True,
+                "inmueble_id": inmueble_id,
+                "nombre": inm.get("nombre", f"Inmueble {inmueble_id}"),
+                "artefactos": list(inm.get("artefactos", [])),
+                "reserva_activa": activa,
+                "reserva_id": inm.get("reserva_id", f"res_{inmueble_id}")
+            }
+
+        # Inmueble no existe (Hallazgo #6)
         return {
+            "existe": False,
             "inmueble_id": inmueble_id,
-            "nombre": inm.get("nombre", f"Inmueble {inmueble_id}"),
-            "artefactos": inm.get("artefactos", []),
-            "reserva_activa": activa,
-            "reserva_id": inm.get("reserva_id", f"res_{inmueble_id}")
+            "nombre": f"Inmueble {inmueble_id}",
+            "artefactos": [],
+            "reserva_activa": False,
+            "reserva_id": None
         }
+
+    def buscar_incidencias(self, inmueble_id: str, servicio_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Consulta C9: localiza incidencias por unidad y opcionalmente servicio."""
+        return self.execute_query(
+            C9_BUSCAR_INCIDENCIA,
+            {"inmueble_id": inmueble_id, "servicio_id": servicio_id},
+            query_name="C9_Buscar_Incidencia"
+        )
 
     def evaluar_fuzzificacion_cypher(self, inputs: Dict[str, float], modulo: str = "M1") -> List[Dict[str, Any]]:
         """Ejecuta la consulta C2 de fuzzificación en Neo4j para trazabilidad en vivo."""
@@ -274,7 +304,8 @@ class Neo4jClient:
             'M2-hueco': {'modulo': 'M2', 'inputs': {'FrecuenciaCausa': 0.10, 'RiesgoEsfuerzoPaso': 5.0, 'EvidenciaAcumulada': 1.00}, 'esperado': 50.0},
             'M3-caso1': {'modulo': 'M3', 'inputs': {'ImpactoClimatico': 38.0, 'TiempoRestante': 48.0, 'SensibilidadServicio': 8.3}, 'esperado': 76.5},
             'M3-hueco': {'modulo': 'M3', 'inputs': {'ImpactoClimatico': 12.0, 'TiempoRestante': 12.0, 'SensibilidadServicio': 10.0}, 'esperado': 66.7},
-            'M3-limite': {'modulo': 'M3', 'inputs': {'ImpactoClimatico': 31.0, 'TiempoRestante': 3.5, 'SensibilidadServicio': 5.5}, 'esperado': 48.7}
+            'M3-limite': {'modulo': 'M3', 'inputs': {'ImpactoClimatico': 31.0, 'TiempoRestante': 3.5, 'SensibilidadServicio': 5.5}, 'esperado': 48.7},
+            'M3-inc2': {'modulo': 'M3', 'inputs': {'ImpactoClimatico': 22.0, 'TiempoRestante': 12.0, 'SensibilidadServicio': 9.5}, 'esperado': 40.5}
         }
 
         self.incidencias = {
@@ -289,7 +320,9 @@ class Neo4jClient:
         # Mock de verificación de contexto (I8 / I12)
         if ("CONTIENE" in query or "TIENE_ARTEFACTO" in query) and ("CORRESPONDE_A" in query or "RESERVA_DE" in query):
             inm_id = params.get("inmueble_id", "inm101")
-            inm = self.inmuebles.get(inm_id, {"nombre": f"Inmueble {inm_id}", "artefactos": []})
+            if inm_id not in self.inmuebles:
+                return []
+            inm = self.inmuebles[inm_id]
             return [{
                 "inmueble_id": inm_id,
                 "nombre": inm.get("nombre", f"Depto {inm_id}"),
@@ -486,9 +519,29 @@ class Neo4jClient:
                 }
             }]
 
+        # Mock de C9 (Buscar incidencia por unidad y servicio)
+        if "C9" in query or "ORDER BY incidencia" in query or ("inc:Incidencia" in query and "$inmueble_id" in query and "sv:Servicio" in query):
+            inm_id = params.get('inmueble_id')
+            serv_id = params.get('servicio_id')
+            rows = []
+            for inc_id, inc_data in self.incidencias.items():
+                if inc_data.get('inmueble') == inm_id:
+                    if serv_id is None or inc_data.get('servicio') == serv_id:
+                        inm_nom = self.inmuebles.get(inm_id, {}).get('nombre', f"Depto {inm_id}")
+                        rows.append({
+                            'incidencia': inc_id,
+                            'inmueble': inm_nom,
+                            'servicio': inc_data.get('servicio'),
+                            'estado': inc_data.get('estado')
+                        })
+            rows.sort(key=lambda r: r['incidencia'])
+            return rows
+
         # Mock de C8
         if "C8" in query or "alfa > 0.05" in query:
             caso_id = params.get('caso_id', 'M3-caso1')
+            if caso_id in CASO_DIFUSO_DE_INCIDENCIA:
+                caso_id = CASO_DIFUSO_DE_INCIDENCIA[caso_id]
             cd = self.casos_difusos.get(caso_id)
             if cd:
                 _, _, _, r_act = inferencia_mamdani(cd['modulo'], cd['inputs'])

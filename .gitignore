@@ -15,7 +15,11 @@ downloads/
 eggs/
 .eggs/
 lib/
-docs/
+# docs/
+!docs/*.md
+!docs/**/*.md
+!docs/*.pdf
+!docs/**/*.docx
 lib64/
 parts/
 sdist/
@@ -70,7 +74,11 @@ instance/
 .scrapy
 
 # Sphinx documentation
-docs/_build/
+# docs/
+!docs/*.md
+!docs/**/*.md
+!docs/*.pdf
+!docs/**/*.docx_build/
 
 # PyBuilder
 .pybuilder/
@@ -105,7 +113,11 @@ ipython_config.py
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
-#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
+#   https://python-poetry.org/# docs/
+!docs/*.md
+!docs/**/*.md
+!docs/*.pdf
+!docs/**/*.docxbasic-usage/#commit-your-poetrylock-file-to-version-control
 #poetry.lock
 
 # pdm

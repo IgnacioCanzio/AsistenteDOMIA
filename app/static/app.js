@@ -31,6 +31,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const metricSolved = document.getElementById('metricSolved');
     const incidentsList = document.getElementById('incidentsList');
     const notificationCard = document.getElementById('notificationCard');
+    const emergencyAlertsBox = document.getElementById('emergencyAlertsBox');
+    const emergencyList = document.getElementById('emergencyList');
+    const emergencyCount = document.getElementById('emergencyCount');
+    let activeAlerts = [];
 
     // Elementos del Inspector
     const traceM1 = document.getElementById('traceM1');
@@ -38,6 +42,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const traceM3 = document.getElementById('traceM3');
     const traceCypher = document.getElementById('traceCypher');
     const fuzzyCasesBody = document.getElementById('fuzzyCasesBody');
+    const traceSandwichExt = document.getElementById('traceSandwichExt');
+    const traceSandwichCypher = document.getElementById('traceSandwichCypher');
+    const traceSandwichExp = document.getElementById('traceSandwichExp');
 
     // --------------------------------------------------------------------------
     // 1. Manejo de Sliders de Telemetría
@@ -134,6 +141,72 @@ document.addEventListener('DOMContentLoaded', () => {
         // Actualizar lista de incidencias si vino ficha
         if (data.ficha_incidencia) {
             addOrUpdateIncident(data.ficha_incidencia);
+        }
+
+        // Procesar alerta de emergencia si fue despachada
+        if (data.alerta_emergencia) {
+            addOrUpdateAlert(data.alerta_emergencia);
+        }
+
+        // Actualizar traza sándwich LLM si está presente
+        if (data.sandwich_trace) {
+            updateSandwichTrace(data.sandwich_trace);
+        }
+    }
+
+    function addOrUpdateAlert(alerta) {
+        const idx = activeAlerts.findIndex(a => a.alerta_id === alerta.alerta_id);
+        if (idx >= 0) activeAlerts[idx] = alerta;
+        else activeAlerts.unshift(alerta);
+        renderAlerts();
+    }
+
+    function renderAlerts() {
+        if (!emergencyCount || !emergencyList) return;
+        emergencyCount.textContent = activeAlerts.length;
+        if (activeAlerts.length === 0) {
+            emergencyList.innerHTML = '<div class="empty-alerts">Sin emergencias activas. El monitoreo opera normalmente.</div>';
+            return;
+        }
+        emergencyList.innerHTML = activeAlerts.map(alt => `
+            <div class="emergency-alert-card">
+                <div class="alt-title">
+                    <span>🚨 ${alt.tipo_emergencia.toUpperCase()} · ${alt.inmueble_id.toUpperCase()}</span>
+                    <span>${new Date(alt.timestamp).toLocaleTimeString()}</span>
+                </div>
+                <div class="alt-body">
+                    <div><strong>Protocolo:</strong> ${alt.protocolo_accion}</div>
+                    <div><strong>Despacho:</strong> Anfitrión: ${alt.notificacion_anfitrion_enviada ? '✓ Notificado' : 'Pendiente'} | Emergencias: ${alt.servicio_emergencias_alertado ? '✓ Alertado' : 'Pendiente'}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function loadAlerts() {
+        try {
+            const res = await fetch('/api/alerts');
+            const alerts = await res.json();
+            activeAlerts = alerts;
+            renderAlerts();
+        } catch (err) {
+            console.error('Error cargando alertas:', err);
+        }
+    }
+
+    function updateSandwichTrace(trace) {
+        if (traceSandwichExt && trace.extraccion) {
+            traceSandwichExt.textContent = JSON.stringify(trace.extraccion, null, 2);
+        }
+        if (traceSandwichCypher && trace.consultas_cypher) {
+            traceSandwichCypher.textContent = trace.consultas_cypher.map(c =>
+                `// ${c.query_name} [filas=${c.rows_returned}, origen=${c.source}]\n${c.query}`
+            ).join('\n\n');
+        }
+        if (traceSandwichExp) {
+            traceSandwichExp.textContent = 
+                `Fidelidad I10: ${trace.fidelidad_ok ? 'SUPERADA ✓' : 'FALLÓ ✗'}\n\n` +
+                `Respuesta redactada:\n«${trace.respuesta_final || ''}»\n` +
+                (trace.problemas_fidelidad?.length ? `\nProblemas: ${JSON.stringify(trace.problemas_fidelidad)}` : '');
         }
     }
 
@@ -426,6 +499,7 @@ RETURN sv.servicio_id, inc.estado, ctx.temperatura_actual;`;
         }
     }
     checkBackendHealth();
+    loadAlerts();
 
     // --------------------------------------------------------------------------
     // 10. Reiniciar Sesión

@@ -9,6 +9,7 @@ Coordina el ciclo de vida completo de la atención al huésped:
 3. M3 (Bruno Montero): Triage difuso, severidad contextual y ficha para el anfitrión.
 """
 
+import uuid
 from typing import Dict, Any, Optional, List
 from src.models.schemas import (
     GuestMessageRequest,
@@ -18,7 +19,8 @@ from src.models.schemas import (
     ReporteEstructurado,
     DiagnosticoFinal,
     ContextoIncidenciaInput,
-    FichaIncidencia
+    FichaIncidencia,
+    AlertaEmergencia
 )
 from src.modules.m1_interpretacion import modulo_m1
 from src.modules.m2_diagnostico import modulo_m2
@@ -33,6 +35,7 @@ class MasterOrchestrator:
         self.m3 = modulo_m3
         self.sesiones_activas: Dict[str, Dict[str, Any]] = {}
         self.incidencias_registradas: Dict[str, FichaIncidencia] = {}
+        self.alertas_emergencia: List[AlertaEmergencia] = []
 
     def _contar_incidencias_activas_inmueble(self, inmueble_id: str) -> int:
         """Cuenta cuántas incidencias activas/escaladas tiene actualmente el mismo inmueble (Regla S4)."""
@@ -41,9 +44,16 @@ class MasterOrchestrator:
             if f.inmueble_id == inmueble_id and f.estado == 'escalada'
         )
 
+    def listar_alertas_emergencia(self) -> List[Dict[str, Any]]:
+        """Retorna las alertas de emergencia emitidas en tiempo real."""
+        return [a.model_dump() for a in self.alertas_emergencia]
+
     def procesar_mensaje_huesped(self, req: GuestMessageRequest) -> InteractionResponse:
         """
         Punto de entrada principal para mensajes iniciales o continuaciones de conversación.
+        Enruta según el System Prompt Maestro PG3:
+        - Consultas de estado/triage/prioridad -> M3 Sándwich
+        - Fallas técnicas iniciales -> M1 -> M2 -> M3
         """
         self.db.clear_traces()
 
@@ -56,6 +66,24 @@ class MasterOrchestrator:
                 dato_estimado=False
             )
 
+        # Enrutamiento Maestro PG3: ¿Es una consulta de triage / estado de incidencia hacia M3?
+        m_low = req.mensaje.lower()
+        es_consulta_triage = any(k in m_low for k in [
+            "cómo quedó", "como quedo", "qué prioridad", "que prioridad",
+            "en qué estado", "en que estado", "ficha de la emergencia",
+            "por qué la falla", "porque la falla", "por qué figura",
+            "por qué tiene", "justific", "triage de la incidencia"
+        ])
+        if es_consulta_triage:
+            res_m3 = self.m3.consultar_triage_lenguaje_natural(req.mensaje)
+            return InteractionResponse(
+                tipo_evento=res_m3.get('tipo_obtenido', 'ficha_incidencia'),
+                mensaje_para_huesped=res_m3.get('respuesta_final', ''),
+                trazabilidad_diagnostica={'m3_triage_sandwich': res_m3.get('datos_grafo', {})},
+                sandwich_trace=res_m3,
+                cypher_traces=self.db.get_traces()
+            )
+
         # ----------------------------------------------------------------------
         # PASO 1: Submódulo M1 - Interpretación semántica y suficiencia
         # ----------------------------------------------------------------------
@@ -64,6 +92,15 @@ class MasterOrchestrator:
             inmueble_id=req.inmueble_id,
             huesped_id=req.huesped_id
         )
+
+        # Inmueble inexistente (Hallazgo #6)
+        if tipo_ev_m1 == 'inmueble_inexistente':
+            return InteractionResponse(
+                tipo_evento='fuera_de_dominio',
+                mensaje_para_huesped=extra_m1['mensaje'],
+                trazabilidad_diagnostica={'m1': extra_m1},
+                cypher_traces=self.db.get_traces()
+            )
 
         # Regla I12: Reserva inactiva
         if tipo_ev_m1 == 'reserva_inactiva':
@@ -130,6 +167,20 @@ class MasterOrchestrator:
             ficha_seg = self.m3.evaluar_severidad(diag_seg, contexto)
             self.incidencias_registradas[ficha_seg.incidencia_id] = ficha_seg
 
+            # Despacho real de Alerta de Emergencia para panel de anfitrión y UI (Hallazgo #4)
+            inm_info = self.db.inmuebles.get(req.inmueble_id, {})
+            inm_nombre = inm_info.get("nombre", f"Depto {req.inmueble_id}")
+            alerta = AlertaEmergencia(
+                alerta_id=f"alt_{uuid.uuid4().hex[:6]}",
+                inmueble_id=req.inmueble_id,
+                inmueble_nombre=inm_nombre,
+                huesped_id=req.huesped_id,
+                sintoma_id=reporte.sintoma_id if reporte else "olor_a_gas",
+                termino_alarma=reporte.termino_alarma if reporte else "gas",
+                protocolo_id="pe1"
+            )
+            self.alertas_emergencia.append(alerta)
+
             return InteractionResponse(
                 tipo_evento='emergencia',
                 mensaje_para_huesped=extra_m1['mensaje'],
@@ -138,10 +189,12 @@ class MasterOrchestrator:
                 reporte_id=reporte.reporte_id,
                 incidencia_id=ficha_seg.incidencia_id,
                 ficha_incidencia=ficha_seg,
+                alerta_emergencia=alerta,
                 trazabilidad_diagnostica={
                     'm1_alarma': extra_m1,
                     'm2_seguridad': extra_m2,
-                    'm3_ficha': ficha_seg.model_dump()
+                    'm3_ficha': ficha_seg.model_dump(),
+                    'alerta_despachada': alerta.model_dump()
                 },
                 cypher_traces=self.db.get_traces()
             )

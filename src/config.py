@@ -20,10 +20,16 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str = os.getenv("NEO4J_PASSWORD", "domia2026")
     NEO4J_DATABASE: str = os.getenv("NEO4J_DATABASE", "neo4j")
 
+    # LLM Providers (Replay, Gemini, Ollama, Fallback)
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "replay")
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+
     # App
     APP_HOST: str = os.getenv("APP_HOST", "0.0.0.0")
     APP_PORT: int = int(os.getenv("APP_PORT", "8000"))
     DEBUG: bool = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes")
+    CORS_ORIGINS: list = ["*"]
 
     # Fallback si Neo4j Aura o Docker no están levantados
     USE_MOCK_NEO4J_IF_UNAVAILABLE: bool = os.getenv("USE_MOCK_NEO4J_IF_UNAVAILABLE", "true").lower() in ("true", "1", "yes")

@@ -173,5 +173,17 @@ def run_pi4_m2_tests():
     return True
 
 if __name__ == "__main__":
-    success = run_pi4_m2_tests()
-    sys.exit(0 if success else 1)
+    success_base = run_pi4_m2_tests()
+
+    print("\n" + "#" * 80)
+    print("EJECUTANDO NUEVA ITERACIÓN PI4 SÁNDWICH LLM ⇄ Neo4j (Nicolás López)")
+    print("#" * 80)
+    from pi4_individuales.pi4_m2_lopez_sandwich import main as run_sandwich_m2
+    try:
+        run_sandwich_m2()
+        success_sandwich = True
+    except Exception as e:
+        print(f"[-] Error ejecutando suite sándwich M2: {e}")
+        success_sandwich = False
+
+    sys.exit(0 if (success_base and success_sandwich) else 1)
